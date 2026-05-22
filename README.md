@@ -19,7 +19,7 @@
 
 | 平台 | 地址 | 启动方式 |
 |---|---|---|
-| GitHub Pages | `https://<你的用户名>.github.io/<仓库名>/` | 推送到 main 分支自动部署 |
+| GitHub Pages | `https://github.com/zrx-explorer/Leader_of_small_country.git` | 推送到 main 分支自动部署 |
 | 本地浏览器 | `http://localhost:8000/apps/web/` | `python -m http.server 8000` 后访问 |
 | 微信小程序 | 开发者工具导入 `apps/miniprogram/` | 真机预览或上传审核 |
 
@@ -29,7 +29,7 @@
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/<你的用户名>/<仓库名>.git
+git clone https://github.com/zrx-explorer/Leader_of_small_country.git
 cd <仓库名>
 
 # 2. 启动本地服务（Web 端）
