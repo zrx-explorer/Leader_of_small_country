@@ -1,0 +1,26 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/policy/policy",
+    "pages/about/about"
+  ],
+  "window": {
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#fdfaf2",
+    "navigationBarTitleText": "小国执政官",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f6f1e7"
+  },
+  "tabBar": {
+    "color": "#54667a",
+    "selectedColor": "#c0392b",
+    "backgroundColor": "#fdfaf2",
+    "list": [
+      { "pagePath": "pages/index/index",  "text": "执政"   },
+      { "pagePath": "pages/policy/policy","text": "政策"   },
+      { "pagePath": "pages/about/about",  "text": "关于"   }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

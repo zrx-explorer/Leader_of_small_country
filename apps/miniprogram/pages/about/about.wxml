@@ -1,0 +1,11 @@
+<view class="container">
+  <view class="card">
+    <view class="title">关于《小国执政官》</view>
+    <view style="font-size:26rpx;color:#54667a;line-height:1.8;">
+      回合制经济社会模拟游戏 v0.1\n
+      作者：你 ✍\n
+      源代码：GitHub 同名仓库\n
+      问题反馈：在 GitHub Issues 提交\n
+    </view>
+  </view>
+</view>

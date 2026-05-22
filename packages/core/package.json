@@ -1,0 +1,11 @@
+{
+  "name": "@xiaoguo/core",
+  "version": "0.1.0",
+  "description": "小国执政官——平台无关的纯 JS 模拟内核",
+  "type": "module",
+  "main": "src/game.js",
+  "exports": {
+    ".": "./src/game.js"
+  },
+  "license": "MIT"
+}

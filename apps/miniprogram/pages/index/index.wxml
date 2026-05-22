@@ -1,0 +1,48 @@
+<view class="container">
+  <view class="card">
+    <view class="title">📜 {{chapterName}} · 第 {{year}} 年</view>
+    <view class="hud-row">
+      <view class="hud-item">人口 <text class="v">{{pop}}</text></view>
+      <view class="hud-item">国库 <text class="v">{{treasury}}</text></view>
+      <view class="hud-item">满意 <text class="v">{{sat}}</text></view>
+      <view class="hud-item">智力 <text class="v">{{intel}}</text></view>
+      <view class="hud-item">罪犯 <text class="v" style="color:#c0392b">{{crim}}</text></view>
+    </view>
+    <view class="hud-row" style="margin-top:12rpx;">
+      <view class="hud-item">农 <text class="v">{{classCount.farmer}}</text></view>
+      <view class="hud-item">工 <text class="v">{{classCount.worker}}</text></view>
+      <view class="hud-item">商 <text class="v">{{classCount.merchant}}</text></view>
+      <view class="hud-item">公 <text class="v">{{classCount.official}}</text></view>
+    </view>
+  </view>
+
+  <!-- 事件 -->
+  <view wx:if="{{event}}" class="card" style="border-top:4rpx solid #c0392b;">
+    <view class="title">📜 {{event.title}}</view>
+    <view style="font-size:26rpx;color:#54667a;line-height:1.6;margin-bottom:14rpx;">{{event.desc}}</view>
+    <block wx:for="{{event.options}}" wx:key="index">
+      <button class="btn-ghost" data-idx="{{index}}" bindtap="onChooseEvent" style="margin-bottom:10rpx;">
+        {{item.label}}
+      </button>
+    </block>
+  </view>
+
+  <!-- 操作 -->
+  <view class="card" wx:if="{{!event && !over}}">
+    <button class="btn-primary" bindtap="onNextYear">⏯ 下一年</button>
+    <button class="btn-ghost" bindtap="onSave" style="margin-top:10rpx;">💾 存档</button>
+  </view>
+
+  <view class="card" wx:if="{{over}}" style="border-top:4rpx solid #c0392b;">
+    <view class="title">{{over === 'win' ? '🎉 千古一帝' : '☠ 游戏结束'}}</view>
+    <view style="font-size:26rpx;color:#54667a;">{{over}}</view>
+  </view>
+
+  <!-- 日志 -->
+  <view class="card">
+    <view class="title">朝堂日志</view>
+    <block wx:for="{{logs}}" wx:key="index">
+      <view style="font-size:24rpx;color:#54667a;line-height:1.7;">{{item}}</view>
+    </block>
+  </view>
+</view>

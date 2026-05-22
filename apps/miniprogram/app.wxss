@@ -1,0 +1,34 @@
+/* app.wxss */
+page {
+  background: #f6f1e7;
+  font-family: PingFangSC, sans-serif;
+  color: #2c3e50;
+}
+.container { padding: 16rpx; }
+.card {
+  background: #fdfaf2;
+  border: 1rpx solid #e6dfcd;
+  border-radius: 12rpx;
+  padding: 20rpx;
+  margin-bottom: 16rpx;
+  box-shadow: 0 2rpx 6rpx rgba(0,0,0,.06);
+}
+.btn-primary {
+  background: #c0392b;
+  color: #fff;
+  border-radius: 8rpx;
+  padding: 18rpx 0;
+  font-size: 30rpx;
+}
+.btn-ghost {
+  background: #fdfaf2;
+  color: #2c3e50;
+  border: 1rpx solid #d8cfb6;
+  border-radius: 8rpx;
+  padding: 14rpx 0;
+  font-size: 26rpx;
+}
+.hud-row { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.hud-item { font-size: 24rpx; color: #54667a; flex: 1; }
+.hud-item .v { color: #2c3e50; font-weight: 600; font-size: 28rpx; }
+.title { font-size: 30rpx; color: #c0392b; margin-bottom: 12rpx; }

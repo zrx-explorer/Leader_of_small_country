@@ -1,0 +1,76 @@
+/**
+ * Web 主入口：组合 core 引擎 + UI
+ */
+import {
+  newGame, nextYear as advance, applyEventOption,
+  serialize, deserialize,
+} from '../../../packages/core/src/game.js';
+import { UI } from './ui.js';
+
+const SAVE_KEY = 'xiaoguo.save.v1';
+
+class Controller {
+  constructor() {
+    this.state = newGame({ chapter: 1, seed: Date.now() });
+    this.ui = new UI(this);
+    this.ui.render(this.state);
+    if (!localStorage.getItem('xiaoguo.tutorial.shown')) {
+      this.ui.startTutorial([
+        '欢迎来到《小国执政官》。先点击右下角"⏯ 下一年"，看一遍数据如何变化。',
+        '左侧"政策调控"可以调整税率与公务员配额。试试把农民税率调到 5%。',
+        '执政路上会随机触发事件，事件没有最优解，请谨慎抉择。',
+      ]);
+      localStorage.setItem('xiaoguo.tutorial.shown', '1');
+    }
+  }
+
+  // === 玩家交互 ===
+  setTax(klass, v) { this.state.policy.tax[klass] = v; }
+  setOfficial(role, v) { this.state.policy.officials[role] = v; }
+  setMilitaryRatio(v) { this.state.policy.militaryRatio = v; }
+
+  nextYear() {
+    if (this.state.over) return;
+    if (this.state.pendingEvent) {
+      // 事件未决策则提示
+      return;
+    }
+    advance(this.state);
+    this.ui.render(this.state);
+  }
+
+  chooseEvent(idx) {
+    applyEventOption(this.state, idx);
+    // 事件后立即结算
+    advance(this.state);
+    this.ui.render(this.state);
+  }
+
+  save() {
+    try {
+      localStorage.setItem(SAVE_KEY, serialize(this.state));
+      alert('已存档（槽位 1）');
+    } catch (e) {
+      alert('存档失败：' + e.message);
+    }
+  }
+
+  load() {
+    const s = localStorage.getItem(SAVE_KEY);
+    if (!s) { alert('暂无存档'); return; }
+    try {
+      this.state = deserialize(s);
+      this.ui.render(this.state);
+    } catch (e) {
+      alert('读档失败：' + e.message);
+    }
+  }
+
+  restart() {
+    this.state = newGame({ chapter: 1, seed: Date.now() });
+    document.getElementById('log-list').innerHTML = '';
+    this.ui.render(this.state);
+  }
+}
+
+window.__game = new Controller();
