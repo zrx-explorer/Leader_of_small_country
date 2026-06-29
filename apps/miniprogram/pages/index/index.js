@@ -34,7 +34,6 @@ Page({
     const idx = +e.currentTarget.dataset.idx;
     const s = app.globalData.state;
     app.api.applyEventOption(s, idx);
-    app.api.nextYear(s);
     this.refresh();
   },
 

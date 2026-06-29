@@ -26,6 +26,7 @@ function wealthGapPenalty(d) {
 function deathProb(age, deathStart=50, hardCap=90) {
   if (age < deathStart) return 0;
   if (age >= hardCap) return 1;
-  return clamp(1 - 1/Math.max(age-deathStart+1,1), 0, 1);
+  const t = (age - deathStart) / (hardCap - deathStart);
+  return clamp(0.015 + t * t * 0.22, 0, 0.6);
 }
 module.exports = { RNG, clamp, productDemand, wealthGapPenalty, deathProb };

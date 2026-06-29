@@ -3,7 +3,7 @@
  */
 import { DEFAULT_CONFIG, CHAPTERS, CLASS } from './config.js';
 import { RNG } from './math.js';
-import { seedPopulation, aggregate } from './person.js';
+import { seedPopulation, aggregate, recordPersonHistory } from './person.js';
 import { farmersProduce, workersProduce, trade, consume } from './economy.js';
 import {
   updateSatisfaction, judgeStatus, plunder,
@@ -15,9 +15,9 @@ import {
 import { rollEvent } from './events.js';
 
 const DEFAULT_POLICY = () => ({
-  tax: { farmer: 0.05, worker: 0.075, merchant: 0.10 },
-  militaryRatio: 0.10,
-  officials: { tax: 2, security: 1, welfare: 1, military: 1, teacher: 2 },
+  tax: { farmer: 0.05, worker: 0.08, merchant: 0.10 },
+  militaryRatio: 0.05,
+  officials: { tax: 1, security: 1, welfare: 0, military: 0, teacher: 2 },
 });
 
 /** 创建游戏状态 */
@@ -41,8 +41,13 @@ export function newGame({ chapter = 1, seed = Date.now() } = {}) {
     pendingEvent: null,
     over: null,             // null / 'win' / 'lose:reason'
     consecutiveBadYears: 0,
+    consecutiveCrimeYears: 0,
+    consecutiveLowSatYears: 0,
+    storyHooks: [],
+    modifiers: {},
   };
   state.stats = aggregate(people);
+  recordPersonHistory(state.people, state.year);
   return state;
 }
 
@@ -53,7 +58,33 @@ export function applyEventOption(state, optionIndex) {
   const opt = ev.options[optionIndex] || ev.options[0];
   state.log.push(`📜 事件【${ev.title}】→ ${opt.label}`);
   opt.apply(state);
+  if (opt.storyHook) state.storyHooks.push(opt.storyHook);
   state.pendingEvent = null;
+}
+
+/** 年度随机波动：提供轻微差异，避免相同操作每局完全一致 */
+function rollYearModifiers(state, log) {
+  const farm = state.rng.normal(1, 0.08);
+  const worker = state.rng.normal(1, 0.05);
+  const price = state.rng.normal(1, 0.04);
+  const birth = state.rng.uniform(-0.015, 0.015);
+  state.modifiers = {
+    farm: +farm.toFixed(3),
+    worker: +worker.toFixed(3),
+    price: +price.toFixed(3),
+    birth: +birth.toFixed(3),
+  };
+  if (farm > 1.08) log.push('雨水充沛，农产略增');
+  else if (farm < 0.92) log.push('天气欠佳，农产略减');
+  if (price > 1.05) log.push('市价微涨，交易成本提高');
+  else if (price < 0.95) log.push('市价平稳偏低，交易更顺畅');
+  return {
+    ...state.cfg,
+    yearlyFarmMultiplier: Math.max(0.82, Math.min(1.18, farm)),
+    yearlyWorkerMultiplier: Math.max(0.88, Math.min(1.12, worker)),
+    yearlyPriceMultiplier: Math.max(0.90, Math.min(1.10, price)),
+    yearlyBirthBonus: birth,
+  };
 }
 
 /** 推进一年（调用前若有 pendingEvent 必须先 applyEventOption） */
@@ -63,16 +94,17 @@ export function nextYear(state) {
   const log = [];
   state.log = log;
   log.push(`━━ 第 ${state.year} 年 ━━`);
+  const yearCfg = rollYearModifiers(state, log);
 
   // ① 分配公务员岗位
   assignRoles(state.people, state.policy);
 
   // ② 生产
-  farmersProduce(state.people, state.cfg, state.rng);
-  workersProduce(state.people, state.cfg, state.rng);
+  farmersProduce(state.people, yearCfg, state.rng);
+  workersProduce(state.people, yearCfg, state.rng);
 
   // ③ 交易
-  trade(state.people, state.cfg, state.rng, log);
+  trade(state.people, yearCfg, state.rng, log);
 
   // ④ 税收 / 工资 / 军事
   state.treasury += collectTax(state.people, state.policy, log);
@@ -80,28 +112,29 @@ export function nextYear(state) {
   state.treasury -= military(state.treasury, state.policy, log);
 
   // ⑤ 教育
-  educate(state.people, state.cfg, log);
+  educate(state.people, yearCfg, log);
 
   // ⑥ 消费
-  consume(state.people, state.cfg);
+  consume(state.people, yearCfg);
 
   // ⑦ 满意度
   state.stats = aggregate(state.people);
-  updateSatisfaction(state.people, state.cfg, state.stats);
+  updateSatisfaction(state.people, yearCfg, state.stats);
 
   // ⑧ 治安 → 罪犯 / 膨胀者 → 掠夺
-  judgeStatus(state.people, state.cfg, securityCount(state.people), log);
+  judgeStatus(state.people, yearCfg, securityCount(state.people), log);
   plunder(state.people, state.rng, log);
 
   // ⑨ 生育与死亡
-  birth(state.people, state.rng, state.cfg, log);
-  ageAndDie(state.people, state.rng, state.cfg, log);
+  birth(state.people, state.rng, yearCfg, log);
+  ageAndDie(state.people, state.rng, yearCfg, log);
 
   // ⑩ 阶级流动
   classMobility(state.people, log);
 
   // ⑪ 重新统计
   state.stats = aggregate(state.people);
+  recordPersonHistory(state.people, state.year);
   state.history.push(snapshot(state));
 
   // ⑫ 胜负判定
@@ -126,6 +159,7 @@ function snapshot(s) {
     avgIntelligence: s.stats.avgIntelligence,
     avgWealth: s.stats.avgWealth,
     criminals: s.stats.criminals,
+    modifiers: { ...s.modifiers },
     byClass: { ...s.stats.byClass },
   };
 }
@@ -140,13 +174,22 @@ function judgeOutcome(s) {
   } else {
     s.consecutiveBadYears = 0;
   }
-  if (s.stats.total > 0 && s.stats.criminals / s.stats.total > 0.30) {
-    s.over = 'lose:革命爆发（罪犯比例 > 30%）'; return;
+  if (s.stats.total > 0 && s.stats.criminals / s.stats.total > 0.45) {
+    s.consecutiveCrimeYears += 1;
+    if (s.consecutiveCrimeYears >= 2) { s.over = 'lose:革命爆发（罪犯比例连续 2 年 > 45%）'; return; }
+  } else {
+    s.consecutiveCrimeYears = 0;
+  }
+  if (s.stats.avgSatisfaction < -24) {
+    s.consecutiveLowSatYears += 1;
+    if (s.consecutiveLowSatYears >= 5) { s.over = 'lose:民心尽失，执政官下台'; return; }
+  } else {
+    s.consecutiveLowSatYears = 0;
   }
 
-  // 胜利（按章节）
+  // 章节目标达成后不强制结束，进入可持续经营。
   const ch = CHAPTERS.find(c => c.id === s.chapter);
-  if (ch && s.year >= ch.goalYears) {
+  if (ch && s.year >= ch.goalYears && !s.flags.chapterGoalMet) {
     let win = true;
     if (ch.minSatisfaction != null && s.stats.avgSatisfaction < ch.minSatisfaction) win = false;
     if (ch.minTreasury != null && s.treasury < ch.minTreasury) win = false;
@@ -157,7 +200,10 @@ function judgeOutcome(s) {
         if (s.stats.classCount[k] > 0 && s.stats.classSat[k] < ch.allClassMinSat) win = false;
       }
     }
-    if (win) s.over = 'win';
+    if (win) {
+      s.flags.chapterGoalMet = true;
+      s.log.push(`章节目标达成：${ch.name}。国家进入持续经营阶段。`);
+    }
   }
 }
 
@@ -167,6 +213,7 @@ export function serialize(s) {
     year: s.year, chapter: s.chapter, seed: s.seed,
     treasury: s.treasury, people: s.people, policy: s.policy,
     flags: s.flags, history: s.history,
+    storyHooks: s.storyHooks, modifiers: s.modifiers,
     rngState: s.rng.s,
   });
 }
@@ -176,6 +223,7 @@ export function deserialize(json) {
   const s = newGame({ chapter: o.chapter, seed: o.seed });
   s.year = o.year; s.treasury = o.treasury; s.people = o.people;
   s.policy = o.policy; s.flags = o.flags; s.history = o.history;
+  s.storyHooks = o.storyHooks || []; s.modifiers = o.modifiers || {};
   s.rng.s = o.rngState;
   s.stats = aggregate(s.people);
   return s;

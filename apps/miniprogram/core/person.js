@@ -1,15 +1,22 @@
 let _uid = 0;
 const nextId = () => ++_uid;
+const SURNAMES = '赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹'.split('');
+const GIVEN = '安邦承德明远知礼怀仁景行守正敬文思齐修远仲平子谦伯宁元直文昌德厚清和嘉言有恒'.match(/.{1,2}/g);
 
 function clampInt(x) { return Math.max(0, Math.min(100, Math.round(x))); }
 
 function createPerson(rng, klass, age) {
+  const id = nextId();
   return {
-    id: nextId(), klass, age: age != null ? age : rng.int(18, 40),
+    id, name: randomName(rng), klass, age: age != null ? age : rng.int(18, 40),
     intelligence: clampInt(rng.normal(50, 15)),
-    satisfaction: 10, grain: 30, product: 4,
-    isCriminal: false, isInflated: false, role: null,
+    satisfaction: 12, grain: 42, product: 6,
+    isCriminal: false, isInflated: false, role: null, history: [],
   };
+}
+
+function randomName(rng) {
+  return SURNAMES[rng.int(0, SURNAMES.length - 1)] + GIVEN[rng.int(0, GIVEN.length - 1)];
 }
 
 function seedPopulation(rng, init) {
@@ -53,4 +60,16 @@ function aggregate(people) {
   return stats;
 }
 
-module.exports = { createPerson, seedPopulation, aggregate, nextId };
+function recordPersonHistory(people, year) {
+  for (const p of people) {
+    if (!p.name) p.name = `无名${p.id}`;
+    if (!Array.isArray(p.history)) p.history = [];
+    const last = p.history[p.history.length - 1];
+    const entry = { year, klass: p.klass, satisfaction: +p.satisfaction.toFixed(2) };
+    if (!last || last.year !== year) p.history.push(entry);
+    else Object.assign(last, entry);
+    if (p.history.length > 120) p.history.shift();
+  }
+}
+
+module.exports = { createPerson, seedPopulation, aggregate, recordPersonHistory, nextId };

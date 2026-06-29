@@ -9,9 +9,10 @@ export function farmersProduce(people, cfg, rng) {
   for (const p of people) {
     if (p.klass !== CLASS.FARMER || p.isCriminal) continue;
     const t = clamp(p.intelligence, 10, 100);
-    const out = cfg.farmerProdMean / 10
+    const yearly = cfg.yearlyFarmMultiplier ?? 1;
+    const out = (cfg.farmerProdMean / 10
       + cfg.farmerProdJitter * (t - 50) / 100
-      + rng.uniform(-1, 1);
+      + rng.uniform(-1, 1)) * yearly;
     p.grain += Math.max(0, out);
   }
 }
@@ -21,9 +22,10 @@ export function workersProduce(people, cfg, rng) {
   for (const p of people) {
     if (p.klass !== CLASS.WORKER || p.isCriminal) continue;
     const t = clamp(p.intelligence, 10, 100);
-    const out = cfg.workerProdMean / 5
+    const yearly = cfg.yearlyWorkerMultiplier ?? 1;
+    const out = (cfg.workerProdMean / 5
       + cfg.workerProdJitter * (t - 50) / 100
-      + rng.uniform(-0.5, 0.5);
+      + rng.uniform(-0.5, 0.5)) * yearly;
     p.product += Math.max(0, out);
     // 生产成本（消耗粮食）
     p.grain -= cfg.productionCost * Math.max(0, out) / 5;
@@ -40,7 +42,7 @@ export function trade(people, cfg, rng, log) {
 
   // 商人从工人处批发：定价 = max(3, 平均粮食意愿)
   const supplyPerMerchant = workers.reduce((s, w) => s + w.product, 0) * 0.7 / merchants.length;
-  const wholesalePrice = 3;
+  const wholesalePrice = 3 * (cfg.yearlyPriceMultiplier ?? 1);
 
   for (const m of merchants) {
     let bought = 0;

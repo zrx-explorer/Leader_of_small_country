@@ -25,9 +25,21 @@ class Controller {
   }
 
   // === 玩家交互 ===
-  setTax(klass, v) { this.state.policy.tax[klass] = v; }
-  setOfficial(role, v) { this.state.policy.officials[role] = v; }
-  setMilitaryRatio(v) { this.state.policy.militaryRatio = v; }
+  canAdjustPolicy() {
+    return !this.state.over && !this.state.pendingEvent && (this.state.year - 1) % 3 === 0;
+  }
+  setTax(klass, v) {
+    if (!this.canAdjustPolicy()) return;
+    this.state.policy.tax[klass] = v;
+  }
+  setOfficial(role, v) {
+    if (!this.canAdjustPolicy()) return;
+    this.state.policy.officials[role] = v;
+  }
+  setMilitaryRatio(v) {
+    if (!this.canAdjustPolicy()) return;
+    this.state.policy.militaryRatio = v;
+  }
 
   nextYear() {
     if (this.state.over) return;
@@ -41,8 +53,6 @@ class Controller {
 
   chooseEvent(idx) {
     applyEventOption(this.state, idx);
-    // 事件后立即结算
-    advance(this.state);
     this.ui.render(this.state);
   }
 

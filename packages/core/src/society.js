@@ -23,12 +23,12 @@ export function updateSatisfaction(people, cfg, stats) {
 
   for (const p of people) {
     let dS = 0;
-    if (p.grain < cfg.grainNeed) dS -= 5;
-    else if (p.grain < cfg.grainReserveNeed) dS -= 2;
-    else dS += 0.2;
+    if (p.grain < cfg.grainNeed) dS -= 3;
+    else if (p.grain < cfg.grainReserveNeed) dS -= 1;
+    else dS += 0.5;
 
-    if (p.product < cfg.productNeedBase) dS -= 5;
-    else if (p.product < cfg.productReserveNeed) dS -= 1.5;
+    if (p.product < cfg.productNeedBase) dS -= 1;
+    else if (p.product < cfg.productReserveNeed) dS -= 0.2;
 
     if (p.klass === poorestClass && (p.klass === CLASS.FARMER || p.klass === CLASS.WORKER)) {
       dS -= gapPenalty * 0.3;
@@ -73,24 +73,29 @@ export function plunder(people, rng, log) {
   if (criminals.length && log) log.push(`💀 ${criminals.length} 名罪犯进行了掠夺`);
 }
 
-/** 生育（修复 v1：成对配对） */
+/** 生育：按阶级整体意愿新增人口 */
 export function birth(people, rng, cfg, log) {
-  const adults = people.filter(p => p.age >= cfg.birthAgeMin && p.age <= cfg.birthAgeMax);
+  const ranges = {
+    [CLASS.FARMER]: [0.1, 0.4],
+    [CLASS.WORKER]: [0.2, 0.8],
+    [CLASS.MERCHANT]: [0.1, 0.6],
+  };
   let births = 0;
-  for (let i = 0; i + 1 < adults.length; i += 2) {
-    const a = adults[i], b = adults[i + 1];
-    const p = clamp((a.satisfaction + b.satisfaction) / 30, 0, 0.4);
-    if (rng.chance(p)) {
-      const klass = (a.klass === CLASS.OFFICIAL || b.klass === CLASS.OFFICIAL)
-        ? (rng.chance(0.5) ? a.klass : b.klass)
-        : a.klass;  // 子承父业（简化）
+  const summary = [];
+  for (const [klass, [lo, hi]] of Object.entries(ranges)) {
+    const count = people.filter(p => p.klass === klass && !p.isCriminal).length;
+    if (!count) continue;
+    const willingness = rng.uniform(lo, hi);
+    const n = Math.floor(willingness * 0.5 * count);
+    for (let i = 0; i < n; i++) {
       const baby = createPerson(rng, klass, 0);
       baby.grain = 5; baby.product = 1;
       people.push(baby);
-      births++;
     }
+    births += n;
+    if (n) summary.push(`${className(klass)} ${n} 人(a=${willingness.toFixed(2)})`);
   }
-  if (births && log) log.push(`👶 新生 ${births} 人`);
+  if (births && log) log.push(`👶 新生 ${births} 人：${summary.join('，')}`);
 }
 
 /** 老化与死亡 */

@@ -13,6 +13,7 @@ export const EVENTS = [
     options: [
       {
         label: '开仓赈灾（国库 -200）',
+        storyHook: { speaker: '民生官', mood: 'relieved', topic: 'disaster_relief' },
         apply: s => {
           s.treasury -= 200;
           s.people.forEach(p => p.grain += 5);
@@ -21,6 +22,7 @@ export const EVENTS = [
       },
       {
         label: '听天由命（满意度全员 -3）',
+        storyHook: { speaker: '流民', mood: 'angry', topic: 'disaster_neglect' },
         apply: s => {
           s.people.forEach(p => p.satisfaction -= 3);
           s.log.push('未予赈济，民怨四起');
@@ -36,8 +38,10 @@ export const EVENTS = [
     condition: s => s.stats.byClass.merchant >= 2,
     options: [
       { label: '征收高税（国库 +150 / 满意度 -1）',
+        storyHook: { speaker: '商队首领', mood: 'guarded', topic: 'trade_tax' },
         apply: s => { s.treasury += 150; s.people.forEach(p => p.satisfaction -= 1); } },
       { label: '低税迎客（国库 +30 / 满意度 +2）',
+        storyHook: { speaker: '商队首领', mood: 'friendly', topic: 'trade_open' },
         apply: s => { s.treasury += 30;  s.people.forEach(p => p.satisfaction += 2); } },
     ]
   },
@@ -49,8 +53,10 @@ export const EVENTS = [
     condition: s => s.stats.avgIntelligence > 55,
     options: [
       { label: '开科举（智力均值缓慢提升）',
+        storyHook: { speaker: '贫寒学子', mood: 'hopeful', topic: 'exam_open' },
         apply: s => { s.flags.examOpen = true; s.log.push('科举已开，国之大幸'); } },
       { label: '不予理会（满意度 -2）',
+        storyHook: { speaker: '贫寒学子', mood: 'disappointed', topic: 'exam_rejected' },
         apply: s => { s.people.forEach(p => p.satisfaction -= 2); } },
     ]
   },
@@ -62,8 +68,10 @@ export const EVENTS = [
     condition: s => s.year > 1,
     options: [
       { label: '加征余粮入库（国库 +300）',
+        storyHook: { speaker: '税务官', mood: 'proud', topic: 'harvest_tax' },
         apply: s => { s.treasury += 300; s.people.forEach(p => p.grain -= 3); } },
       { label: '藏粮于民（满意度 +2）',
+        storyHook: { speaker: '乡老', mood: 'grateful', topic: 'harvest_people' },
         apply: s => { s.people.forEach(p => p.satisfaction += 2); } },
     ]
   },
@@ -75,8 +83,10 @@ export const EVENTS = [
     condition: s => s.stats.criminals > 0,
     options: [
       { label: '增派治安官（国库 -100）',
+        storyHook: { speaker: '治安官', mood: 'stern', topic: 'unrest_security' },
         apply: s => { s.treasury -= 100; s.policy.officials.security += 1; } },
       { label: '安抚为先（粮食赈济）',
+        storyHook: { speaker: '流民代表', mood: 'wary', topic: 'unrest_relief' },
         apply: s => { s.people.filter(p => p.satisfaction < 0).forEach(p => { p.grain += 10; p.satisfaction += 2; }); } },
     ]
   },
@@ -88,8 +98,10 @@ export const EVENTS = [
     condition: s => s.year >= 5 && s.stats.total >= 30,
     options: [
       { label: '封城治疗（国库 -300）',
+        storyHook: { speaker: '医官', mood: 'focused', topic: 'plague_lockdown' },
         apply: s => { s.treasury -= 300; s.log.push('疫情得到控制'); } },
       { label: '不闻不问（随机 5% 死亡）',
+        storyHook: { speaker: '医官', mood: 'desperate', topic: 'plague_ignored' },
         apply: s => {
           const dead = Math.floor(s.people.length * 0.05);
           for (let i = 0; i < dead; i++) s.people.splice(s.rng.int(0, s.people.length-1), 1);
@@ -106,8 +118,10 @@ export const EVENTS = [
     condition: s => s.year >= 8,
     options: [
       { label: '应允（国库 +500，满意度 +1）',
+        storyHook: { speaker: '邻国使者', mood: 'pleased', topic: 'alliance_accept' },
         apply: s => { s.treasury += 500; s.people.forEach(p => p.satisfaction += 1); } },
       { label: '婉拒（满意度 -1）',
+        storyHook: { speaker: '邻国使者', mood: 'cold', topic: 'alliance_reject' },
         apply: s => { s.people.forEach(p => p.satisfaction -= 1); } },
     ]
   },
@@ -119,8 +133,10 @@ export const EVENTS = [
     condition: s => s.stats.classWealth.merchant > s.stats.classWealth.farmer * 3,
     options: [
       { label: '强制平抑物价（商人满意度 -3）',
+        storyHook: { speaker: '商人', mood: 'resentful', topic: 'price_control' },
         apply: s => { s.people.filter(p => p.klass === 'merchant').forEach(p => p.satisfaction -= 3); } },
       { label: '听之任之（农工满意度 -2）',
+        storyHook: { speaker: '工匠', mood: 'tired', topic: 'inflation_ignored' },
         apply: s => { s.people.filter(p => p.klass === 'farmer' || p.klass === 'worker').forEach(p => p.satisfaction -= 2); } },
     ]
   },

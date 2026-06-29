@@ -9,7 +9,7 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">📜 小国执政官 <span class="version">v0.1</span></div>
+    <div class="brand">📜 小国执政官 <span class="version">v0.2</span></div>
     <div class="hud">
       <span class="hud-item" title="年份">📅 第 <b id="hud-year">1</b> 年</span>
       <span class="hud-item" title="人口">👥 <b id="hud-pop">0</b></span>
@@ -29,14 +29,15 @@
     <!-- 左：政策面板 -->
     <aside class="panel panel-policy">
       <h2>政策调控</h2>
+      <p id="policy-window-tip" class="policy-window-tip">政策窗口开放：本年可调整税率、公务员与军费</p>
 
       <fieldset>
         <legend>税率</legend>
         <label>农民 <output id="out-tax-farmer">5%</output>
           <input type="range" id="tax-farmer" min="0" max="50" step="1" value="5" />
         </label>
-        <label>工人 <output id="out-tax-worker">7.5%</output>
-          <input type="range" id="tax-worker" min="0" max="50" step="1" value="7" />
+        <label>工人 <output id="out-tax-worker">8%</output>
+          <input type="range" id="tax-worker" min="0" max="50" step="1" value="8" />
         </label>
         <label>商人 <output id="out-tax-merchant">10%</output>
           <input type="range" id="tax-merchant" min="0" max="50" step="1" value="10" />
@@ -45,17 +46,17 @@
 
       <fieldset>
         <legend>公务员配额</legend>
-        <label>税务 <output id="out-off-tax">2</output>
-          <input type="range" id="off-tax" min="0" max="20" step="1" value="2" />
+        <label>税务 <output id="out-off-tax">1</output>
+          <input type="range" id="off-tax" min="0" max="20" step="1" value="1" />
         </label>
         <label>治安 <output id="out-off-security">1</output>
           <input type="range" id="off-security" min="0" max="20" step="1" value="1" />
         </label>
-        <label>民生 <output id="out-off-welfare">1</output>
-          <input type="range" id="off-welfare" min="0" max="20" step="1" value="1" />
+        <label>民生 <output id="out-off-welfare">0</output>
+          <input type="range" id="off-welfare" min="0" max="20" step="1" value="0" />
         </label>
-        <label>军事 <output id="out-off-military">1</output>
-          <input type="range" id="off-military" min="0" max="20" step="1" value="1" />
+        <label>军事 <output id="out-off-military">0</output>
+          <input type="range" id="off-military" min="0" max="20" step="1" value="0" />
         </label>
         <label>教师 <output id="out-off-teacher">2</output>
           <input type="range" id="off-teacher" min="0" max="20" step="1" value="2" />
@@ -64,8 +65,8 @@
 
       <fieldset>
         <legend>军费</legend>
-        <label>国库占比 <output id="out-mil">10%</output>
-          <input type="range" id="mil-ratio" min="0" max="50" step="1" value="10" />
+        <label>国库占比 <output id="out-mil">5%</output>
+          <input type="range" id="mil-ratio" min="0" max="50" step="1" value="5" />
         </label>
       </fieldset>
     </aside>
@@ -81,9 +82,9 @@
           <h3>历史曲线</h3>
           <canvas id="chart-history" width="540" height="220"></canvas>
           <div class="legend">
-            <span class="lg lg-pop">— 人口</span>
-            <span class="lg lg-sat">— 满意度</span>
-            <span class="lg lg-tre">— 国库</span>
+            <span class="lg lg-pop">蓝线：人口规模</span>
+            <span class="lg lg-sat">绿线：平均满意度</span>
+            <span class="lg lg-tre">金线：国库储备</span>
           </div>
         </div>
       </div>
@@ -92,6 +93,19 @@
         <button id="btn-next" class="btn btn-primary">⏯ 下一年</button>
         <span id="chapter-tip" class="chapter-tip"></span>
       </div>
+
+      <section class="people-board">
+        <div class="people-head">
+          <h3>国民个体</h3>
+          <span>点击头像查看阶级与满意度变化</span>
+        </div>
+        <div class="people-content">
+          <div id="people-grid" class="people-grid"></div>
+          <aside id="person-detail" class="person-detail">
+            <div class="detail-empty">选择一位国民查看履历</div>
+          </aside>
+        </div>
+      </section>
     </section>
 
     <!-- 右：日志/事件 -->

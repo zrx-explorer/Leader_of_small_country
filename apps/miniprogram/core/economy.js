@@ -5,7 +5,8 @@ function farmersProduce(people, cfg, rng) {
   for (const p of people) {
     if (p.klass !== CLASS.FARMER || p.isCriminal) continue;
     const t = clamp(p.intelligence, 10, 100);
-    const out = cfg.farmerProdMean/10 + cfg.farmerProdJitter*(t-50)/100 + rng.uniform(-1, 1);
+    const yearly = cfg.yearlyFarmMultiplier || 1;
+    const out = (cfg.farmerProdMean/10 + cfg.farmerProdJitter*(t-50)/100 + rng.uniform(-1, 1)) * yearly;
     p.grain += Math.max(0, out);
   }
 }
@@ -14,7 +15,8 @@ function workersProduce(people, cfg, rng) {
   for (const p of people) {
     if (p.klass !== CLASS.WORKER || p.isCriminal) continue;
     const t = clamp(p.intelligence, 10, 100);
-    const out = cfg.workerProdMean/5 + cfg.workerProdJitter*(t-50)/100 + rng.uniform(-0.5, 0.5);
+    const yearly = cfg.yearlyWorkerMultiplier || 1;
+    const out = (cfg.workerProdMean/5 + cfg.workerProdJitter*(t-50)/100 + rng.uniform(-0.5, 0.5)) * yearly;
     p.product += Math.max(0, out);
     p.grain -= cfg.productionCost * Math.max(0, out)/5;
   }
@@ -26,7 +28,7 @@ function trade(people, cfg, rng, log) {
   const buyers = people.filter(p => p.klass === CLASS.FARMER || p.klass === CLASS.OFFICIAL);
   if (!merchants.length || !workers.length || !buyers.length) return;
   const supplyPerMerchant = workers.reduce((s, w) => s + w.product, 0) * 0.7 / merchants.length;
-  const wholesalePrice = 3;
+  const wholesalePrice = 3 * (cfg.yearlyPriceMultiplier || 1);
   for (const m of merchants) {
     let bought = 0;
     for (const w of workers) {

@@ -1,11 +1,18 @@
 /**
  * UI 绑定：DOM ↔ 游戏状态
  */
-import { drawClassPie, drawHistory } from './charts.js';
+import {
+  drawClassPie, drawHistory, formatCompactNumber, yearAtCanvasX,
+} from './charts.js';
+
+const CLASS_LABEL = { farmer: '农民', worker: '工人', merchant: '商人', official: '公务员' };
+const CLASS_COLOR = { farmer: '#2ecc71', worker: '#3498db', merchant: '#d4a017', official: '#8e44ad' };
 
 export class UI {
   constructor(controller) {
     this.ctrl = controller;
+    this.selectedPersonId = null;
+    this.historyView = { startYear: null, endYear: null, hoverYear: null };
     this.bind();
   }
 
@@ -30,6 +37,24 @@ export class UI {
       this.hideEnd();
       this.ctrl.restart();
     };
+
+    const historyCanvas = document.getElementById('chart-history');
+    historyCanvas.addEventListener('mousemove', e => {
+      const state = this.ctrl.state;
+      const year = yearAtCanvasX(historyCanvas, state.history, this.historyView, e.clientX);
+      this.historyView.hoverYear = year;
+      this.renderCharts(state);
+    });
+    historyCanvas.addEventListener('mouseleave', () => {
+      this.historyView.hoverYear = null;
+      this.renderCharts(this.ctrl.state);
+    });
+    historyCanvas.addEventListener('wheel', e => {
+      if (!e.altKey) return;
+      e.preventDefault();
+      this.zoomHistory(e.deltaY > 0 ? 1 : -1);
+      this.renderCharts(this.ctrl.state);
+    }, { passive: false });
   }
 
   _range(id, onChange, fmt = v => v) {
@@ -46,18 +71,21 @@ export class UI {
   render(state) {
     document.getElementById('hud-year').textContent = state.year;
     document.getElementById('hud-pop').textContent = state.stats.total;
-    document.getElementById('hud-treasury').textContent = state.treasury.toFixed(0);
+    document.getElementById('hud-treasury').textContent = formatCompactNumber(state.treasury);
+    document.getElementById('hud-treasury').title = state.treasury.toFixed(0);
     document.getElementById('hud-sat').textContent = state.stats.avgSatisfaction;
     document.getElementById('hud-int').textContent = state.stats.avgIntelligence;
     document.getElementById('hud-crim').textContent = state.stats.criminals;
 
     // 章节进度
     document.getElementById('chapter-tip').textContent =
-      `章节 ${state.chapter} · ${state.chapterName}`;
+      `章节 ${state.chapter} · ${state.chapterName} · ${policyWindowText(state.year)}`;
+    this.syncPolicyControls(state);
+    this.updatePolicyLock(state);
 
-    // 图表
-    drawClassPie(document.getElementById('chart-class'), state.stats.byClass);
-    drawHistory(document.getElementById('chart-history'), state.history);
+    // 图表 / 个体
+    this.renderCharts(state);
+    this.renderPeople(state);
 
     // 日志
     this.renderLog(state);
@@ -68,6 +96,131 @@ export class UI {
 
     // 结算
     if (state.over) this.showEnd(state);
+  }
+
+  renderCharts(state) {
+    drawClassPie(document.getElementById('chart-class'), state.stats.byClass);
+    this.normalizeHistoryView(state);
+    drawHistory(document.getElementById('chart-history'), state.history, this.historyView);
+  }
+
+  normalizeHistoryView(state) {
+    if (state.history.length < 2) return;
+    const first = state.history[0].year;
+    const last = state.history[state.history.length - 1].year;
+    if (this.historyView.startYear == null || this.historyView.endYear == null) {
+      this.historyView.startYear = first;
+      this.historyView.endYear = last;
+      return;
+    }
+    if (this.historyView.endYear === last - 1) this.historyView.endYear = last;
+    this.historyView.startYear = Math.max(first, Math.min(this.historyView.startYear, last - 1));
+    this.historyView.endYear = Math.min(last, Math.max(this.historyView.endYear, this.historyView.startYear + 1));
+  }
+
+  zoomHistory(direction) {
+    const history = this.ctrl.state.history;
+    if (history.length < 4) return;
+    this.normalizeHistoryView(this.ctrl.state);
+    const first = history[0].year;
+    const last = history[history.length - 1].year;
+    const start = this.historyView.startYear ?? first;
+    const end = this.historyView.endYear ?? last;
+    const span = end - start + 1;
+    const nextSpan = direction < 0
+      ? Math.max(4, Math.floor(span * 0.75))
+      : Math.min(last - first + 1, Math.ceil(span * 1.35));
+    const center = this.historyView.hoverYear ?? Math.round((start + end) / 2);
+    let nextStart = Math.round(center - nextSpan / 2);
+    let nextEnd = nextStart + nextSpan - 1;
+    if (nextStart < first) { nextStart = first; nextEnd = first + nextSpan - 1; }
+    if (nextEnd > last) { nextEnd = last; nextStart = last - nextSpan + 1; }
+    this.historyView.startYear = nextStart;
+    this.historyView.endYear = nextEnd;
+  }
+
+  renderPeople(state) {
+    const grid = document.getElementById('people-grid');
+    const detail = document.getElementById('person-detail');
+    if (!grid || !detail) return;
+    if (!state.people.some(p => p.id === this.selectedPersonId)) {
+      this.selectedPersonId = state.people[0]?.id ?? null;
+    }
+    grid.innerHTML = state.people.map(p => {
+      const active = p.id === this.selectedPersonId ? ' active' : '';
+      const initial = (p.name || `民${p.id}`).slice(0, 1);
+      return `<button class="person-avatar${active}" data-id="${p.id}" title="${p.name || ''}">
+        <span class="avatar-face" style="background:${CLASS_COLOR[p.klass] || '#888'}">${initial}</span>
+        <span class="avatar-name">${p.name || `无名${p.id}`}</span>
+        <span class="avatar-sat">满意 ${p.satisfaction.toFixed(1)}</span>
+      </button>`;
+    }).join('');
+    grid.querySelectorAll('.person-avatar').forEach(btn => {
+      btn.onclick = () => {
+        this.selectedPersonId = Number(btn.dataset.id);
+        this.renderPeople(this.ctrl.state);
+      };
+    });
+    const person = state.people.find(p => p.id === this.selectedPersonId);
+    if (!person) {
+      detail.innerHTML = '<div class="detail-empty">选择一位国民查看履历</div>';
+      return;
+    }
+    const history = Array.isArray(person.history) ? person.history.slice(-12).reverse() : [];
+    detail.innerHTML = `
+      <div class="detail-title">${person.name || `无名${person.id}`}</div>
+      <div class="detail-row"><span>阶级</span><b>${CLASS_LABEL[person.klass] || person.klass}</b></div>
+      <div class="detail-row"><span>年龄</span><b>${person.age}</b></div>
+      <div class="detail-row"><span>满意度</span><b>${person.satisfaction.toFixed(2)}</b></div>
+      <div class="detail-row"><span>智力</span><b>${person.intelligence.toFixed(2)}</b></div>
+      <div class="detail-row"><span>粮食 / 产品</span><b>${person.grain.toFixed(1)} / ${person.product.toFixed(1)}</b></div>
+      <div class="history-list">
+        <div class="detail-title">变化记录</div>
+        ${history.map(h => `<div class="history-item">
+          <span>${h.year}年</span><span>${CLASS_LABEL[h.klass] || h.klass}</span><b>${Number(h.satisfaction).toFixed(2)}</b>
+        </div>`).join('') || '<div class="detail-empty">暂无历史</div>'}
+      </div>`;
+  }
+
+  syncPolicyControls(state) {
+    const values = {
+      'tax-farmer': Math.round(state.policy.tax.farmer * 100),
+      'tax-worker': Math.round(state.policy.tax.worker * 100),
+      'tax-merchant': Math.round(state.policy.tax.merchant * 100),
+      'off-tax': state.policy.officials.tax,
+      'off-security': state.policy.officials.security,
+      'off-welfare': state.policy.officials.welfare,
+      'off-military': state.policy.officials.military,
+      'off-teacher': state.policy.officials.teacher,
+      'mil-ratio': Math.round(state.policy.militaryRatio * 100),
+    };
+    const formatters = {
+      'tax-farmer': v => `${v}%`,
+      'tax-worker': v => `${v}%`,
+      'tax-merchant': v => `${v}%`,
+      'mil-ratio': v => `${v}%`,
+    };
+    for (const [id, value] of Object.entries(values)) {
+      const el = document.getElementById(id);
+      const out = document.getElementById(`out-${id}`);
+      if (!el || !out) continue;
+      el.value = value;
+      out.textContent = (formatters[id] || (v => v))(value);
+    }
+  }
+
+  updatePolicyLock(state) {
+    const locked = !canAdjustPolicy(state);
+    const tip = document.getElementById('policy-window-tip');
+    if (tip) {
+      tip.textContent = locked
+        ? `政策已锁定，${yearsUntilPolicyWindow(state.year)} 年后可再次调控`
+        : '政策窗口开放：本年可调整税率、公务员与军费';
+      tip.classList.toggle('locked', locked);
+    }
+    document.querySelectorAll('.panel-policy input[type="range"]').forEach(el => {
+      el.disabled = locked;
+    });
   }
 
   renderLog(state) {
@@ -135,4 +288,18 @@ export class UI {
     document.getElementById('tutorial-next').onclick = show;
     show();
   }
+}
+
+function canAdjustPolicy(state) {
+  return !state.over && !state.pendingEvent && (state.year - 1) % 3 === 0;
+}
+
+function yearsUntilPolicyWindow(year) {
+  return 3 - ((year - 1) % 3);
+}
+
+function policyWindowText(year) {
+  return (year - 1) % 3 === 0
+    ? '政策窗口开放'
+    : `政策锁定中，${yearsUntilPolicyWindow(year)} 年后开放`;
 }
