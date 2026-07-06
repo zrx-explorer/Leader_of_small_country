@@ -82,11 +82,15 @@ export function birth(people, rng, cfg, log) {
   };
   let births = 0;
   const summary = [];
+  const total = people.length;
+  const pressure = total <= cfg.populationSoftCap
+    ? 1
+    : clamp(1 - (total - cfg.populationSoftCap) / (cfg.populationHardCap - cfg.populationSoftCap), 0.02, 1);
   for (const [klass, [lo, hi]] of Object.entries(ranges)) {
     const count = people.filter(p => p.klass === klass && !p.isCriminal).length;
     if (!count) continue;
     const willingness = rng.uniform(lo, hi);
-    const n = Math.floor(willingness * 0.5 * count);
+    const n = Math.floor(willingness * 0.5 * count * pressure);
     for (let i = 0; i < n; i++) {
       const baby = createPerson(rng, klass, 0);
       baby.grain = 5; baby.product = 1;
@@ -95,7 +99,10 @@ export function birth(people, rng, cfg, log) {
     births += n;
     if (n) summary.push(`${className(klass)} ${n} 人(a=${willingness.toFixed(2)})`);
   }
-  if (births && log) log.push(`👶 新生 ${births} 人：${summary.join('，')}`);
+  if (births && log) {
+    const pressureText = pressure < 1 ? `，承载压力 ${(pressure * 100).toFixed(0)}%` : '';
+    log.push(`👶 新生 ${births} 人：${summary.join('，')}${pressureText}`);
+  }
 }
 
 /** 老化与死亡 */

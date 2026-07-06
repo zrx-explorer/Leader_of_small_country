@@ -7,11 +7,14 @@ import {
 
 const CLASS_LABEL = { farmer: '农民', worker: '工人', merchant: '商人', official: '公务员' };
 const CLASS_COLOR = { farmer: '#2ecc71', worker: '#3498db', merchant: '#d4a017', official: '#8e44ad' };
+const PEOPLE_PAGE_SIZE = 180;
 
 export class UI {
   constructor(controller) {
     this.ctrl = controller;
     this.selectedPersonId = null;
+    this.peoplePage = 0;
+    this.peopleClassFilter = 'all';
     this.historyView = { startYear: null, endYear: null, hoverYear: null };
     this.bind();
   }
@@ -37,6 +40,9 @@ export class UI {
       this.hideEnd();
       this.ctrl.restart();
     };
+    document.querySelectorAll('.decree-btn').forEach(btn => {
+      btn.onclick = () => this.ctrl.applyDecree(btn.dataset.decree);
+    });
 
     const historyCanvas = document.getElementById('chart-history');
     historyCanvas.addEventListener('mousemove', e => {
@@ -55,6 +61,20 @@ export class UI {
       this.zoomHistory(e.deltaY > 0 ? 1 : -1);
       this.renderCharts(this.ctrl.state);
     }, { passive: false });
+
+    document.getElementById('people-class-filter')?.addEventListener('change', e => {
+      this.peopleClassFilter = e.target.value;
+      this.peoplePage = 0;
+      this.renderPeople(this.ctrl.state);
+    });
+    document.getElementById('people-prev')?.addEventListener('click', () => {
+      this.peoplePage = Math.max(0, this.peoplePage - 1);
+      this.renderPeople(this.ctrl.state);
+    });
+    document.getElementById('people-next')?.addEventListener('click', () => {
+      this.peoplePage += 1;
+      this.renderPeople(this.ctrl.state);
+    });
   }
 
   _range(id, onChange, fmt = v => v) {
@@ -146,7 +166,25 @@ export class UI {
     if (!state.people.some(p => p.id === this.selectedPersonId)) {
       this.selectedPersonId = state.people[0]?.id ?? null;
     }
-    grid.innerHTML = state.people.map(p => {
+    const filtered = this.peopleClassFilter === 'all'
+      ? state.people
+      : state.people.filter(p => p.klass === this.peopleClassFilter);
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PEOPLE_PAGE_SIZE));
+    this.peoplePage = Math.min(this.peoplePage, totalPages - 1);
+    const pagePeople = filtered.slice(
+      this.peoplePage * PEOPLE_PAGE_SIZE,
+      (this.peoplePage + 1) * PEOPLE_PAGE_SIZE,
+    );
+    const pageInfo = document.getElementById('people-page-info');
+    if (pageInfo) {
+      pageInfo.textContent = `第 ${this.peoplePage + 1}/${totalPages} 页 · ${filtered.length}/${state.people.length} 人`;
+    }
+    const prev = document.getElementById('people-prev');
+    const next = document.getElementById('people-next');
+    if (prev) prev.disabled = this.peoplePage <= 0;
+    if (next) next.disabled = this.peoplePage >= totalPages - 1;
+
+    grid.innerHTML = pagePeople.map(p => {
       const active = p.id === this.selectedPersonId ? ' active' : '';
       const initial = (p.name || `民${p.id}`).slice(0, 1);
       return `<button class="person-avatar${active}" data-id="${p.id}" title="${p.name || ''}">
@@ -154,7 +192,7 @@ export class UI {
         <span class="avatar-name">${p.name || `无名${p.id}`}</span>
         <span class="avatar-sat">满意 ${p.satisfaction.toFixed(1)}</span>
       </button>`;
-    }).join('');
+    }).join('') || '<div class="detail-empty">该筛选下暂无人口</div>';
     grid.querySelectorAll('.person-avatar').forEach(btn => {
       btn.onclick = () => {
         this.selectedPersonId = Number(btn.dataset.id);
@@ -221,6 +259,16 @@ export class UI {
     document.querySelectorAll('.panel-policy input[type="range"]').forEach(el => {
       el.disabled = locked;
     });
+    const decreeUsed = state.flags.lastDecreeYear === state.year;
+    document.querySelectorAll('.decree-btn').forEach(el => {
+      el.disabled = locked || decreeUsed;
+    });
+    const decreeTip = document.getElementById('decree-tip');
+    if (decreeTip) {
+      decreeTip.textContent = decreeUsed
+        ? '本政策窗口已颁布政令'
+        : (locked ? '下一个政策窗口才能颁布政令' : '本政策窗口可颁布一道政令');
+    }
   }
 
   renderLog(state) {

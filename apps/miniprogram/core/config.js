@@ -10,6 +10,7 @@ const DEFAULT_CONFIG = Object.freeze({
   govWage:10, militaryRatio:0.05,
   teacherPerStudents:10, intelligenceGainPerYear:0.25, intelligenceCap:5, satisfactionFromEdu:0.5,
   birthAgeMin:18, birthAgeMax:30, deathStartAge:50, deathHardCap:95,
+  populationSoftCap:800, populationHardCap:2500,
   bucketModeThreshold:200,
 });
 

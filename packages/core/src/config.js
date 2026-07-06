@@ -53,6 +53,8 @@ export const DEFAULT_CONFIG = Object.freeze({
   birthAgeMax: 30,
   deathStartAge: 50,
   deathHardCap: 95,
+  populationSoftCap: 800,
+  populationHardCap: 2500,
   // 性能
   bucketModeThreshold: 200, // 人口超过 200 启用桶模拟
 });

@@ -69,6 +69,15 @@
           <input type="range" id="mil-ratio" min="0" max="50" step="1" value="5" />
         </label>
       </fieldset>
+
+      <fieldset class="decree-box">
+        <legend>政令</legend>
+        <button class="btn decree-btn" data-decree="farming">劝课农桑</button>
+        <button class="btn decree-btn" data-decree="workshop">工坊补贴</button>
+        <button class="btn decree-btn" data-decree="trade">开放商路</button>
+        <button class="btn decree-btn" data-decree="relief">安民赈济</button>
+        <p id="decree-tip" class="decree-tip">政策窗口内可颁布一道政令</p>
+      </fieldset>
     </aside>
 
     <!-- 中：可视化 -->
@@ -98,6 +107,18 @@
         <div class="people-head">
           <h3>国民个体</h3>
           <span>点击头像查看阶级与满意度变化</span>
+        </div>
+        <div class="people-tools">
+          <select id="people-class-filter" aria-label="阶级筛选">
+            <option value="all">全部阶级</option>
+            <option value="farmer">农民</option>
+            <option value="worker">工人</option>
+            <option value="merchant">商人</option>
+            <option value="official">公务员</option>
+          </select>
+          <button id="people-prev" class="btn btn-ghost">上一页</button>
+          <span id="people-page-info">第 1 页</span>
+          <button id="people-next" class="btn btn-ghost">下一页</button>
         </div>
         <div class="people-content">
           <div id="people-grid" class="people-grid"></div>
