@@ -7,3 +7,4 @@ dist/
 miniprogram_npm/
 *.lock
 .cache/
+/原始策划案/
