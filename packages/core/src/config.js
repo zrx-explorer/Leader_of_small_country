@@ -28,8 +28,11 @@ export const DEFAULT_CONFIG = Object.freeze({
   // 满意度阈值
   productDemandLow: 12,
   productDemandHigh: 15,
-  rebelThreshold: -30,
-  inflatedThreshold: 15,
+  rebelThreshold: -10,
+  inflatedThreshold: 24,
+  lowCrimeChance: 0.12,
+  highCrimeChance: 0.03,
+  crimeStartYear: 6,
   // 生产
   farmerProdMean: 180,      // 农民人均年产粮（180/10人=18/人）
   farmerProdJitter: 18,
@@ -43,6 +46,9 @@ export const DEFAULT_CONFIG = Object.freeze({
   // 政府
   govWage: 10,
   militaryRatio: 0.05,
+  securityUnlockYear: 5,
+  welfareUnlockYear: 11,
+  militaryOfficialUnlockYear: 21,
   // 教育
   teacherPerStudents: 10,
   intelligenceGainPerYear: 0.25,
@@ -50,11 +56,18 @@ export const DEFAULT_CONFIG = Object.freeze({
   satisfactionFromEdu: 0.5,
   // 社会动态
   birthAgeMin: 18,
-  birthAgeMax: 30,
+  birthAgeMax: 40,
+  birthRateFarmer: 0.22,
+  birthRateWorker: 0.18,
+  birthRateMerchant: 0.14,
+  populationSoftCap: 800,
+  populationHardCap: 2000,
+  accidentDeathRate: 0.01,
+  starvationDeathRate: 0.08,
   deathStartAge: 50,
   deathHardCap: 95,
   // 性能
-  bucketModeThreshold: 200, // 人口超过 200 启用桶模拟
+  bucketModeThreshold: 300, // UI 超过该值只渲染部分个体
 });
 
 export const INITIAL_POPULATION = {

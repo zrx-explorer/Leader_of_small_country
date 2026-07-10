@@ -1,1 +1,3 @@
 /* policy.wxss */
+.help{display:inline-block;width:32rpx;height:32rpx;line-height:32rpx;text-align:center;border:2rpx solid #c0392b;border-radius:50%;color:#c0392b;font-weight:bold;}
+.official-help{margin:12rpx 0;padding:14rpx;background:#f6efe2;color:#54667a;font-size:22rpx;line-height:1.6;border-radius:8rpx;}

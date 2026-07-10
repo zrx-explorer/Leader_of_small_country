@@ -28,6 +28,13 @@ export class UI {
     this._range('off-teacher',  (v)=>this.ctrl.setOfficial('teacher', v));
     this._range('mil-ratio',    (v)=>this.ctrl.setMilitaryRatio(v/100), v=>v+'%');
 
+    document.querySelectorAll('.role-help-btn').forEach(help => {
+      help.onclick = e => {
+        e.preventDefault();
+        document.getElementById(help.dataset.help)?.classList.toggle('hidden');
+      };
+    });
+
     // 按钮
     document.getElementById('btn-next').onclick     = () => this.ctrl.nextYear();
     document.getElementById('btn-save').onclick     = () => this.ctrl.save();
@@ -146,7 +153,9 @@ export class UI {
     if (!state.people.some(p => p.id === this.selectedPersonId)) {
       this.selectedPersonId = state.people[0]?.id ?? null;
     }
-    grid.innerHTML = state.people.map(p => {
+    const renderLimit = state.cfg.bucketModeThreshold || 300;
+    const visiblePeople = state.people.slice(0, renderLimit);
+    grid.innerHTML = visiblePeople.map(p => {
       const active = p.id === this.selectedPersonId ? ' active' : '';
       const initial = (p.name || `民${p.id}`).slice(0, 1);
       return `<button class="person-avatar${active}" data-id="${p.id}" title="${p.name || ''}">
@@ -154,7 +163,9 @@ export class UI {
         <span class="avatar-name">${p.name || `无名${p.id}`}</span>
         <span class="avatar-sat">满意 ${p.satisfaction.toFixed(1)}</span>
       </button>`;
-    }).join('');
+    }).join('') + (state.people.length > renderLimit
+      ? `<div class="people-truncated">为保持流畅，仅显示前 ${renderLimit} / ${state.people.length} 人</div>`
+      : '');
     grid.querySelectorAll('.person-avatar').forEach(btn => {
       btn.onclick = () => {
         this.selectedPersonId = Number(btn.dataset.id);
@@ -171,6 +182,7 @@ export class UI {
       <div class="detail-title">${person.name || `无名${person.id}`}</div>
       <div class="detail-row"><span>阶级</span><b>${CLASS_LABEL[person.klass] || person.klass}</b></div>
       <div class="detail-row"><span>年龄</span><b>${person.age}</b></div>
+      <div class="detail-row"><span>性别</span><b>${person.gender === 'female' ? '女' : '男'}</b></div>
       <div class="detail-row"><span>满意度</span><b>${person.satisfaction.toFixed(2)}</b></div>
       <div class="detail-row"><span>智力</span><b>${person.intelligence.toFixed(2)}</b></div>
       <div class="detail-row"><span>粮食 / 产品</span><b>${person.grain.toFixed(1)} / ${person.product.toFixed(1)}</b></div>
@@ -215,12 +227,24 @@ export class UI {
     if (tip) {
       tip.textContent = locked
         ? `政策已锁定，${yearsUntilPolicyWindow(state.year)} 年后可再次调控`
-        : '政策窗口开放：本年可调整税率、公务员与军费';
+        : '政策窗口开放：本年可调整公务员与军费；税率以税率栏状态为准';
       tip.classList.toggle('locked', locked);
     }
     document.querySelectorAll('.panel-policy input[type="range"]').forEach(el => {
-      el.disabled = locked;
+      if (el.id.startsWith('tax-')) el.disabled = !this.ctrl.canAdjustTax();
+      else if (el.id === 'off-security') el.disabled = Boolean(state.over || state.pendingEvent || state.year < 5);
+      else if (el.id === 'off-welfare') el.disabled = locked || state.year < 11;
+      else if (el.id === 'off-military') el.disabled = locked || state.year < 21;
+      else el.disabled = locked;
     });
+    const security = document.getElementById('off-security');
+    if (security && state.year < 5) security.title = '治安官人数从第 5 年起可以修改';
+    const welfare = document.getElementById('off-welfare');
+    if (welfare && state.year < 11) welfare.title = '民生官员经营满 10 年后解锁（第 11 年）';
+    const military = document.getElementById('off-military');
+    if (military && state.year < 21) military.title = '军事官员经营满 20 年后解锁（第 21 年）';
+    const taxTip = document.getElementById('tax-adjust-tip');
+    if (taxTip) taxTip.textContent = taxAdjustmentText(state, this.ctrl);
   }
 
   renderLog(state) {
@@ -302,4 +326,14 @@ function policyWindowText(year) {
   return (year - 1) % 3 === 0
     ? '政策窗口开放'
     : `政策锁定中，${yearsUntilPolicyWindow(year)} 年后开放`;
+}
+
+function taxAdjustmentText(state, ctrl) {
+  if (state.people.length <= 100) return '人口不超过 100：税率随常规政策窗口调整';
+  const welfare = ctrl.welfareCount();
+  if (!welfare) return '人口已超过 100：没有民生官员，税率锁定';
+  const interval = ctrl.taxInterval();
+  if (ctrl.canAdjustTax()) return `${welfare} 名民生官员：本年可调税（间隔 ${interval} 年）`;
+  const remaining = Math.max(0, interval - (state.year - state.lastTaxChangeYear));
+  return `${welfare} 名民生官员：${remaining} 年后可再次调税`;
 }

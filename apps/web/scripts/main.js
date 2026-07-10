@@ -28,12 +28,35 @@ class Controller {
   canAdjustPolicy() {
     return !this.state.over && !this.state.pendingEvent && (this.state.year - 1) % 3 === 0;
   }
+  welfareCount() {
+    return this.state.people.filter(p => !p.isCriminal && p.role === 'welfare').length;
+  }
+  taxInterval() {
+    const count = this.welfareCount();
+    return count > 10 ? 1 : Math.max(1, 11 - count);
+  }
+  canAdjustTax() {
+    const s = this.state;
+    if (s.over || s.pendingEvent) return false;
+    if (s.people.length <= 100) return this.canAdjustPolicy();
+    if (this.welfareCount() === 0) return false;
+    if (s.lastTaxChangeYear == null || s.lastTaxChangeYear === s.year) return true;
+    return s.year - s.lastTaxChangeYear >= this.taxInterval();
+  }
   setTax(klass, v) {
-    if (!this.canAdjustPolicy()) return;
+    if (!this.canAdjustTax()) return;
+    if (this.state.policy.tax[klass] === v) return;
     this.state.policy.tax[klass] = v;
+    this.state.lastTaxChangeYear = this.state.year;
   }
   setOfficial(role, v) {
-    if (!this.canAdjustPolicy()) return;
+    if (role === 'security') {
+      if (this.state.over || this.state.pendingEvent || this.state.year < 5) return;
+    } else {
+      if (!this.canAdjustPolicy()) return;
+      if (role === 'welfare' && this.state.year < 11) return;
+      if (role === 'military' && this.state.year < 21) return;
+    }
     this.state.policy.officials[role] = v;
   }
   setMilitaryRatio(v) {

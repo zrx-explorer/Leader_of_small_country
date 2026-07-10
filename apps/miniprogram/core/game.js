@@ -2,7 +2,7 @@ const { DEFAULT_CONFIG, CHAPTERS, CLASS } = require('./config.js');
 const { RNG } = require('./math.js');
 const { seedPopulation, aggregate, recordPersonHistory } = require('./person.js');
 const { farmersProduce, workersProduce, trade, consume } = require('./economy.js');
-const { updateSatisfaction, judgeStatus, plunder, birth, ageAndDie, classMobility } = require('./society.js');
+const { updateSatisfaction, judgeStatus, enforceSecurity, plunder, birth, ageAndDie, classMobility } = require('./society.js');
 const { assignRoles, collectTax, payWages, educate, military, securityCount } = require('./government.js');
 const { rollEvent } = require('./events.js');
 
@@ -31,6 +31,7 @@ function newGame(opt) {
     consecutiveBadYears: 0,
     consecutiveCrimeYears: 0,
     consecutiveLowSatYears: 0,
+    lastTaxChangeYear: null,
     storyHooks: [],
     modifiers: {},
   };
@@ -79,7 +80,7 @@ function nextYear(state) {
   state.log = log;
   log.push(`━━ 第 ${state.year} 年 ━━`);
   const yearCfg = rollYearModifiers(state, log);
-  assignRoles(state.people, state.policy);
+  assignRoles(state.people, state.policy, state.year);
   farmersProduce(state.people, yearCfg, state.rng);
   workersProduce(state.people, yearCfg, state.rng);
   trade(state.people, yearCfg, state.rng, log);
@@ -90,7 +91,8 @@ function nextYear(state) {
   consume(state.people, yearCfg);
   state.stats = aggregate(state.people);
   updateSatisfaction(state.people, yearCfg, state.stats);
-  judgeStatus(state.people, yearCfg, securityCount(state.people), log);
+  judgeStatus(state.people, state.rng, yearCfg, state.year, log);
+  enforceSecurity(state.people, state.rng, securityCount(state.people), state.year, log);
   plunder(state.people, state.rng, log);
   birth(state.people, state.rng, yearCfg, log);
   ageAndDie(state.people, state.rng, yearCfg, log);
@@ -160,6 +162,7 @@ function serialize(s) {
     treasury: s.treasury, people: s.people, policy: s.policy,
     flags: s.flags, history: s.history,
     storyHooks: s.storyHooks, modifiers: s.modifiers,
+    lastTaxChangeYear: s.lastTaxChangeYear,
     rngState: s.rng.s,
   });
 }
@@ -168,8 +171,10 @@ function deserialize(json) {
   const o = JSON.parse(json);
   const s = newGame({ chapter: o.chapter, seed: o.seed });
   s.year = o.year; s.treasury = o.treasury; s.people = o.people;
+  s.people.forEach(p => { if (!p.gender) p.gender = p.id % 2 ? 'male' : 'female'; });
   s.policy = o.policy; s.flags = o.flags; s.history = o.history;
   s.storyHooks = o.storyHooks || []; s.modifiers = o.modifiers || {};
+  s.lastTaxChangeYear = o.lastTaxChangeYear == null ? null : o.lastTaxChangeYear;
   s.rng.s = o.rngState;
   s.stats = aggregate(s.people);
   return s;

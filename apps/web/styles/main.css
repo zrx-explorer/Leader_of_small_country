@@ -67,6 +67,14 @@ body{
 fieldset{border:1px solid #e6dfcd;border-radius:var(--radius);
   padding:8px 10px;margin-bottom:10px;}
 legend{font-size:12px;color:var(--accent);padding:0 4px;}
+.help-btn{
+  width:18px;height:18px;padding:0;margin-left:3px;border-radius:50%;
+  border:1px solid var(--accent);background:transparent;color:var(--accent);
+  font-weight:700;line-height:16px;cursor:pointer;
+}
+.role-help-btn{vertical-align:middle;}
+.role-help-text{display:block;float:none;margin:4px 0;padding:5px 6px;border-radius:4px;background:#f6efe2;color:var(--ink-soft);font-size:11px;line-height:1.45;}
+.role-help-text.hidden{display:none;}
 label{display:block;font-size:12px;color:var(--ink-soft);margin:6px 0;}
 label output{float:right;color:var(--ink);font-weight:600;}
 input[type=range]{width:100%;accent-color:var(--accent);}
@@ -113,6 +121,7 @@ canvas{display:block;width:100%;height:auto;}
   min-height:66px;transition:box-shadow .15s,border-color .15s,transform .15s;
 }
 .person-avatar:hover,.person-avatar.active{border-color:var(--accent);box-shadow:var(--shadow);transform:translateY(-1px);}
+.people-truncated{grid-column:1/-1;color:var(--ink-soft);font-size:11px;padding:8px;text-align:center;}
 .avatar-face{
   width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
   color:#fff;font-weight:700;font-size:13px;

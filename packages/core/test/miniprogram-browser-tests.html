@@ -1,0 +1,74 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>miniprogram tests running</title>
+<pre id="result">running</pre>
+<script>
+const root = new URL('../../../apps/miniprogram/core/', location.href);
+const cache = {};
+function load(name) {
+  const key = name.replace(/^\.\//, '');
+  if (cache[key]) return cache[key].exports;
+  const request = new XMLHttpRequest();
+  request.open('GET', new URL(key, root), false);
+  request.send();
+  if (request.status && request.status !== 200) throw new Error(`无法读取 ${key}`);
+  const module = {exports:{}};
+  cache[key] = module;
+  new Function('require', 'module', 'exports', `${request.responseText}\n//# sourceURL=${key}`)(load, module, module.exports);
+  return module.exports;
+}
+
+const results = [];
+function assert(value, message) { if (!value) throw new Error(message); }
+function test(name, fn) {
+  try { fn(); results.push(`PASS ${name}`); }
+  catch (error) { results.push(`FAIL ${name}: ${error.message}`); }
+}
+
+test('小程序核心可加载并生成性别', () => {
+  const game = load('game.js');
+  const state = game.newGame({chapter:1, seed:7});
+  assert(state.people.every(p => p.gender === 'male' || p.gender === 'female'), '存在无性别人口');
+});
+
+test('小程序核心可连续推进 30 年', () => {
+  const game = load('game.js');
+  const state = game.newGame({chapter:4, seed:11});
+  for (let i = 0; i < 30 && !state.over; i++) {
+    if (state.pendingEvent) game.applyEventOption(state, 0);
+    game.nextYear(state);
+    assert(state.people.length <= state.cfg.populationHardCap, '人口突破硬上限');
+  }
+});
+
+test('小程序税务官管辖上限为 100', () => {
+  const {assignRoles, collectTax} = load('government.js');
+  const people = Array.from({length:201}, (_, i) => ({id:i, klass:'farmer', grain:100, product:0, isCriminal:false, role:null}));
+  people.push({id:999, klass:'official', grain:0, product:0, isCriminal:false, role:null});
+  const policy = {tax:{farmer:.1,worker:0,merchant:0}, officials:{tax:1,security:0,welfare:0,military:0,teacher:0}};
+  assignRoles(people, policy);
+  assert(collectTax(people, policy, []) === 1000, '税收覆盖人数不正确');
+});
+
+test('小程序政策页可加载民生调税规则', () => {
+  const request = new XMLHttpRequest();
+  request.open('GET', new URL('../../../apps/miniprogram/pages/policy/policy.js', location.href), false);
+  request.send();
+  const state = load('game.js').newGame({chapter:4, seed:23});
+  state.year = 11;
+  state.people[0].role = 'welfare';
+  state.lastTaxChangeYear = 1;
+  let page;
+  new Function('getApp', 'Page', request.responseText)(
+    () => ({globalData:{state}}),
+    definition => { page = definition; },
+  );
+  assert(page.taxInterval.call(page) === 10, '1名民生官调税间隔不是10年');
+  assert(page.canAdjustTax.call(page), '满10年后税率仍锁定');
+});
+
+const failed = results.filter(line => line.startsWith('FAIL')).length;
+result.textContent = results.join('\n');
+document.title = failed ? `miniprogram tests failed (${failed})` : 'miniprogram tests passed';
+document.body.dataset.failed = String(failed);
+</script>

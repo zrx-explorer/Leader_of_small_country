@@ -2,25 +2,31 @@
   <view class="card">
     <view class="title">税率</view>
     <view style="font-size:24rpx;color:#9a6a22;margin-bottom:12rpx;">{{policyTip}}</view>
+    <view style="font-size:22rpx;color:#54667a;margin-bottom:12rpx;">{{taxTip}}</view>
     <view style="font-size:24rpx;color:#54667a;">农民 {{taxFarmer}}%</view>
-    <slider min="0" max="50" step="1" value="{{taxFarmer}}" disabled="{{policyLocked}}" data-key="taxFarmer" bindchange="onSlider" activeColor="#c0392b" />
+    <slider min="0" max="50" step="1" value="{{taxFarmer}}" disabled="{{taxLocked}}" data-key="taxFarmer" bindchange="onSlider" activeColor="#c0392b" />
     <view style="font-size:24rpx;color:#54667a;">工人 {{taxWorker}}%</view>
-    <slider min="0" max="50" step="1" value="{{taxWorker}}" disabled="{{policyLocked}}" data-key="taxWorker" bindchange="onSlider" activeColor="#c0392b" />
+    <slider min="0" max="50" step="1" value="{{taxWorker}}" disabled="{{taxLocked}}" data-key="taxWorker" bindchange="onSlider" activeColor="#c0392b" />
     <view style="font-size:24rpx;color:#54667a;">商人 {{taxMerchant}}%</view>
-    <slider min="0" max="50" step="1" value="{{taxMerchant}}" disabled="{{policyLocked}}" data-key="taxMerchant" bindchange="onSlider" activeColor="#c0392b" />
+    <slider min="0" max="50" step="1" value="{{taxMerchant}}" disabled="{{taxLocked}}" data-key="taxMerchant" bindchange="onSlider" activeColor="#c0392b" />
   </view>
 
   <view class="card">
     <view class="title">公务员配额</view>
-    <view style="font-size:24rpx;color:#54667a;">税务 {{offTax}}</view>
+    <view style="font-size:24rpx;color:#54667a;">税务 <text class="help" data-role="tax" bindtap="toggleOfficialHelp">?</text> {{offTax}}</view>
+    <view wx:if="{{helpRole == 'tax'}}" class="official-help">每人管辖100名纳税人｜开局解锁</view>
     <slider min="0" max="20" step="1" value="{{offTax}}" disabled="{{policyLocked}}" data-key="offTax" bindchange="onSlider" />
-    <view style="font-size:24rpx;color:#54667a;">治安 {{offSec}}</view>
-    <slider min="0" max="20" step="1" value="{{offSec}}" disabled="{{policyLocked}}" data-key="offSec" bindchange="onSlider" />
-    <view style="font-size:24rpx;color:#54667a;">民生 {{offWel}}</view>
-    <slider min="0" max="20" step="1" value="{{offWel}}" disabled="{{policyLocked}}" data-key="offWel" bindchange="onSlider" />
-    <view style="font-size:24rpx;color:#54667a;">军事 {{offMil}}</view>
-    <slider min="0" max="20" step="1" value="{{offMil}}" disabled="{{policyLocked}}" data-key="offMil" bindchange="onSlider" />
-    <view style="font-size:24rpx;color:#54667a;">教师 {{offTea}}</view>
+    <view style="font-size:24rpx;color:#54667a;">治安 <text class="help" data-role="security" bindtap="toggleOfficialHelp">?</text> {{offSec}}</view>
+    <view wx:if="{{helpRole == 'security'}}" class="official-help">按人数消除罪犯｜第5年解锁</view>
+    <slider min="0" max="20" step="1" value="{{offSec}}" disabled="{{securityLocked}}" data-key="offSec" bindchange="onSlider" />
+    <view style="font-size:24rpx;color:#54667a;">民生 <text class="help" data-role="welfare" bindtap="toggleOfficialHelp">?</text> {{offWel}}</view>
+    <view wx:if="{{helpRole == 'welfare'}}" class="official-help">人口过百后缩短调税间隔｜第11年解锁</view>
+    <slider min="0" max="20" step="1" value="{{offWel}}" disabled="{{welfareLocked}}" data-key="offWel" bindchange="onSlider" />
+    <view style="font-size:24rpx;color:#54667a;">军事 <text class="help" data-role="military" bindtap="toggleOfficialHelp">?</text> {{offMil}}</view>
+    <view wx:if="{{helpRole == 'military'}}" class="official-help">承担国防岗位｜第21年解锁</view>
+    <slider min="0" max="20" step="1" value="{{offMil}}" disabled="{{militaryLocked}}" data-key="offMil" bindchange="onSlider" />
+    <view style="font-size:24rpx;color:#54667a;">教师 <text class="help" data-role="teacher" bindtap="toggleOfficialHelp">?</text> {{offTea}}</view>
+    <view wx:if="{{helpRole == 'teacher'}}" class="official-help">每人教育10人｜开局解锁</view>
     <slider min="0" max="20" step="1" value="{{offTea}}" disabled="{{policyLocked}}" data-key="offTea" bindchange="onSlider" />
   </view>
 

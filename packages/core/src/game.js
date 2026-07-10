@@ -6,7 +6,7 @@ import { RNG } from './math.js';
 import { seedPopulation, aggregate, recordPersonHistory } from './person.js';
 import { farmersProduce, workersProduce, trade, consume } from './economy.js';
 import {
-  updateSatisfaction, judgeStatus, plunder,
+  updateSatisfaction, judgeStatus, enforceSecurity, plunder,
   birth, ageAndDie, classMobility,
 } from './society.js';
 import {
@@ -43,6 +43,7 @@ export function newGame({ chapter = 1, seed = Date.now() } = {}) {
     consecutiveBadYears: 0,
     consecutiveCrimeYears: 0,
     consecutiveLowSatYears: 0,
+    lastTaxChangeYear: null,
     storyHooks: [],
     modifiers: {},
   };
@@ -97,7 +98,7 @@ export function nextYear(state) {
   const yearCfg = rollYearModifiers(state, log);
 
   // ① 分配公务员岗位
-  assignRoles(state.people, state.policy);
+  assignRoles(state.people, state.policy, state.year);
 
   // ② 生产
   farmersProduce(state.people, yearCfg, state.rng);
@@ -122,7 +123,8 @@ export function nextYear(state) {
   updateSatisfaction(state.people, yearCfg, state.stats);
 
   // ⑧ 治安 → 罪犯 / 膨胀者 → 掠夺
-  judgeStatus(state.people, yearCfg, securityCount(state.people), log);
+  judgeStatus(state.people, state.rng, yearCfg, state.year, log);
+  enforceSecurity(state.people, state.rng, securityCount(state.people), state.year, log);
   plunder(state.people, state.rng, log);
 
   // ⑨ 生育与死亡
@@ -214,6 +216,7 @@ export function serialize(s) {
     treasury: s.treasury, people: s.people, policy: s.policy,
     flags: s.flags, history: s.history,
     storyHooks: s.storyHooks, modifiers: s.modifiers,
+    lastTaxChangeYear: s.lastTaxChangeYear,
     rngState: s.rng.s,
   });
 }
@@ -222,8 +225,12 @@ export function deserialize(json) {
   const o = JSON.parse(json);
   const s = newGame({ chapter: o.chapter, seed: o.seed });
   s.year = o.year; s.treasury = o.treasury; s.people = o.people;
+  for (const p of s.people) {
+    if (!p.gender) p.gender = p.id % 2 ? 'male' : 'female';
+  }
   s.policy = o.policy; s.flags = o.flags; s.history = o.history;
   s.storyHooks = o.storyHooks || []; s.modifiers = o.modifiers || {};
+  s.lastTaxChangeYear = o.lastTaxChangeYear ?? null;
   s.rng.s = o.rngState;
   s.stats = aggregate(s.people);
   return s;

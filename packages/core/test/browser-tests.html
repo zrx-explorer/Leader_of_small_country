@@ -1,0 +1,134 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>core tests running</title>
+<pre id="result">running</pre>
+<script type="module">
+import { RNG } from '../src/math.js';
+import { DEFAULT_CONFIG, CLASS } from '../src/config.js';
+import { createPerson, aggregate } from '../src/person.js';
+import { assignRoles, collectTax } from '../src/government.js';
+import { birth, ageAndDie, judgeStatus, enforceSecurity, plunder } from '../src/society.js';
+import { EVENTS } from '../src/events.js';
+import { newGame, nextYear, applyEventOption } from '../src/game.js';
+
+const results = [];
+function test(name, fn) {
+  try { fn(); results.push(`PASS ${name}`); }
+  catch (error) { results.push(`FAIL ${name}: ${error.message}`); }
+}
+function assert(value, message) { if (!value) throw new Error(message); }
+function basePerson(id, overrides = {}) {
+  return { id, name:`民${id}`, klass:CLASS.FARMER, age:25, gender:'male', intelligence:50,
+    satisfaction:0, grain:100, product:0, isCriminal:false, isInflated:false, role:null, history:[], ...overrides };
+}
+
+test('税务官每人只覆盖 100 人', () => {
+  const people = Array.from({length:250}, (_, i) => basePerson(i + 1));
+  people.push(basePerson(999, { klass:CLASS.OFFICIAL }));
+  const policy = { tax:{farmer:.1,worker:0,merchant:0}, officials:{tax:1,security:0,welfare:0,military:0,teacher:0} };
+  assignRoles(people, policy);
+  const total = collectTax(people, policy, []);
+  assert(total === 1000, `实际税收 ${total}`);
+  assert(people.filter(p => p.klass === CLASS.FARMER && p.grain === 90).length === 100, '纳税人数不是 100');
+});
+
+test('民生与军事岗位按经营年限解锁', () => {
+  const officials = Array.from({length:8}, (_, i) => basePerson(i + 1, {klass:CLASS.OFFICIAL}));
+  const policy = {officials:{tax:0,security:1,welfare:2,military:2,teacher:0}};
+  assignRoles(officials, policy, 10);
+  assert(!officials.some(p => p.role === 'welfare' || p.role === 'military'), '第10年提前分配锁定岗位');
+  assignRoles(officials, policy, 11);
+  assert(officials.filter(p => p.role === 'welfare').length === 2, '第11年未解锁民生岗位');
+  assert(!officials.some(p => p.role === 'military'), '第11年提前解锁军事岗位');
+  assignRoles(officials, policy, 21);
+  assert(officials.filter(p => p.role === 'military').length === 2, '第21年未解锁军事岗位');
+});
+
+test('没有一男一女就不会出生', () => {
+  const cfg = {...DEFAULT_CONFIG, birthRateFarmer:1, populationSoftCap:1000};
+  const rng = new RNG(77);
+  const onlyMen = [basePerson(1), basePerson(2)];
+  birth(onlyMen, rng, cfg, []);
+  assert(onlyMen.length === 2, '单一性别仍然出生');
+  const pair = [basePerson(3), basePerson(4, {gender:'female'})];
+  birth(pair, rng, cfg, []);
+  assert(pair.length === 3, `一对男女应出生 1 人，实际 ${pair.length - 2}`);
+});
+
+test('事故死亡率长期样本约为 1%', () => {
+  const rng = new RNG(20260710);
+  const people = Array.from({length:10000}, (_, i) => basePerson(i + 1, {age:20}));
+  ageAndDie(people, rng, {...DEFAULT_CONFIG, deathStartAge:200, deathHardCap:220, starvationDeathRate:0}, []);
+  const deaths = 10000 - people.length;
+  assert(deaths >= 70 && deaths <= 130, `事故死亡 ${deaths} 人`);
+});
+
+test('前五年无罪犯，之后高低满意度均可能犯罪', () => {
+  const people = [basePerson(1, {satisfaction:-30}), basePerson(2, {satisfaction:30})];
+  const always = { chance:()=>true };
+  judgeStatus(people, always, DEFAULT_CONFIG, 5, []);
+  assert(people.every(p => !p.isCriminal), '第 5 年出现罪犯');
+  judgeStatus(people, always, DEFAULT_CONFIG, 6, []);
+  assert(people.every(p => p.isCriminal), '高低满意度没有都产生罪犯');
+  assert(aggregate(people).avgSatisfaction === 0, '罪犯满意度被计入平均值');
+});
+
+test('犯罪阈值校准为低于 -10 / 高于 24', () => {
+  const rng = new RNG(11024);
+  const low = Array.from({length:5000}, (_, i) => basePerson(i + 1, {satisfaction:-15}));
+  const high = Array.from({length:5000}, (_, i) => basePerson(i + 6000, {satisfaction:27}));
+  judgeStatus(low, rng, DEFAULT_CONFIG, 6, []);
+  judgeStatus(high, rng, DEFAULT_CONFIG, 6, []);
+  const lowRate = low.filter(p => p.isCriminal).length / low.length;
+  const highRate = high.filter(p => p.isCriminal).length / high.length;
+  assert(lowRate > .19 && lowRate < .25, `低满意度犯罪率 ${(lowRate*100).toFixed(1)}%`);
+  assert(highRate > .045 && highRate < .09, `高满意度犯罪率 ${(highRate*100).toFixed(1)}%`);
+});
+
+test('治安官配额及 40% 从良规则', () => {
+  const nine = Array.from({length:12}, (_, i) => basePerson(i + 1, {isCriminal:true}));
+  enforceSecurity(nine, {chance:()=>true}, 9, 6, []);
+  assert(nine.filter(p => !p.isCriminal).length === 4, '9 名治安官应处理 4 人');
+  const ten = Array.from({length:12}, (_, i) => basePerson(i + 20, {isCriminal:true}));
+  enforceSecurity(ten, {chance:()=>true}, 10, 6, []);
+  assert(ten.filter(p => !p.isCriminal).length === 10, '10 名治安官应处理 10 人');
+});
+
+test('罪犯偷窃不会增加自身资产', () => {
+  const criminal = basePerson(1, {isCriminal:true, grain:7});
+  const victim = basePerson(2, {grain:100});
+  plunder([criminal, victim], {int:()=>0}, []);
+  assert(criminal.grain === 7, `罪犯资产增至 ${criminal.grain}`);
+  assert(victim.grain < 100, '受害者没有损失');
+});
+
+test('瘟疫死亡率随资产增加而降低', () => {
+  const poor = basePerson(1, {grain:0});
+  const rich = basePerson(2, {grain:1000});
+  const state = {people:[poor, rich], rng:{chance:p=>p>.1}, log:[]};
+  const plague = EVENTS.find(e => e.id === 'plague_black');
+  plague.options[1].apply(state);
+  assert(!state.people.includes(poor), '贫困者在给定风险下应死亡');
+  assert(state.people.includes(rich), '富裕者的资产保护没有生效');
+});
+
+test('长程人口不会突破硬上限', () => {
+  let maxPopulation = 0;
+  for (let seed = 1; seed <= 8; seed++) {
+    const state = newGame({chapter:4, seed});
+    let years = 0;
+    for (; years < 120 && !state.over; years++) {
+      if (state.pendingEvent) applyEventOption(state, 0);
+      nextYear(state);
+      maxPopulation = Math.max(maxPopulation, state.stats.total);
+      assert(state.stats.total <= state.cfg.populationHardCap, `人口达到 ${state.stats.total}`);
+    }
+  }
+  results.push(`INFO 长程模拟最大人口 ${maxPopulation}`);
+});
+
+const failed = results.filter(line => line.startsWith('FAIL')).length;
+document.getElementById('result').textContent = results.join('\n');
+document.title = failed ? `core tests failed (${failed})` : 'core tests passed';
+document.body.dataset.failed = String(failed);
+</script>

@@ -33,6 +33,7 @@
 
       <fieldset>
         <legend>税率</legend>
+        <div id="tax-adjust-tip" class="role-help-text"></div>
         <label>农民 <output id="out-tax-farmer">5%</output>
           <input type="range" id="tax-farmer" min="0" max="50" step="1" value="5" />
         </label>
@@ -46,19 +47,24 @@
 
       <fieldset>
         <legend>公务员配额</legend>
-        <label>税务 <output id="out-off-tax">1</output>
+        <label>税务 <button class="help-btn role-help-btn" type="button" data-help="help-tax">?</button><output id="out-off-tax">1</output>
+          <span id="help-tax" class="role-help-text hidden">每人管辖 100 名纳税人｜开局解锁</span>
           <input type="range" id="off-tax" min="0" max="20" step="1" value="1" />
         </label>
-        <label>治安 <output id="out-off-security">1</output>
+        <label>治安 <button class="help-btn role-help-btn" type="button" data-help="help-security">?</button><output id="out-off-security">1</output>
+          <span id="help-security" class="role-help-text hidden">按人数消除罪犯｜第 5 年解锁</span>
           <input type="range" id="off-security" min="0" max="20" step="1" value="1" />
         </label>
-        <label>民生 <output id="out-off-welfare">0</output>
+        <label>民生 <button class="help-btn role-help-btn" type="button" data-help="help-welfare">?</button><output id="out-off-welfare">0</output>
+          <span id="help-welfare" class="role-help-text hidden">人口过百后缩短调税间隔｜第 11 年解锁</span>
           <input type="range" id="off-welfare" min="0" max="20" step="1" value="0" />
         </label>
-        <label>军事 <output id="out-off-military">0</output>
+        <label>军事 <button class="help-btn role-help-btn" type="button" data-help="help-military">?</button><output id="out-off-military">0</output>
+          <span id="help-military" class="role-help-text hidden">承担国防岗位｜第 21 年解锁</span>
           <input type="range" id="off-military" min="0" max="20" step="1" value="0" />
         </label>
-        <label>教师 <output id="out-off-teacher">2</output>
+        <label>教师 <button class="help-btn role-help-btn" type="button" data-help="help-teacher">?</button><output id="out-off-teacher">2</output>
+          <span id="help-teacher" class="role-help-text hidden">每人教育 10 人｜开局解锁</span>
           <input type="range" id="off-teacher" min="0" max="20" step="1" value="2" />
         </label>
       </fieldset>

@@ -27,67 +27,106 @@ function updateSatisfaction(people, cfg, stats) {
   }
 }
 
-function judgeStatus(people, cfg, securityCount, log) {
-  let suppressedQuota = securityCount;
+function judgeStatus(people, rng, cfg, year, log) {
+  if (year < cfg.crimeStartYear) return;
+  let added = 0;
   for (const p of people) {
-    if (p.satisfaction <= cfg.rebelThreshold) {
-      if (suppressedQuota > 0) {
-        suppressedQuota--; p.satisfaction += 2;
-        if (log) log.push(`🚓 治安官制服了一名罪犯（id=${p.id}）`);
-      } else { p.isCriminal = true; }
-    } else { p.isCriminal = false; }
+    if (p.isCriminal) continue;
+    const lowSeverity = Math.max(0, cfg.rebelThreshold - p.satisfaction);
+    const highSeverity = Math.max(0, p.satisfaction - cfg.inflatedThreshold);
+    const chance = lowSeverity > 0
+      ? Math.min(0.45, cfg.lowCrimeChance + lowSeverity * 0.02)
+      : highSeverity > 0
+        ? Math.min(0.30, cfg.highCrimeChance + highSeverity * 0.012)
+        : 0;
+    if (chance > 0 && rng.chance(chance)) {
+      p.isCriminal = true; p.isInflated = highSeverity > 0; added++;
+    }
     p.isInflated = p.satisfaction >= cfg.inflatedThreshold;
   }
+  if (added && log) log.push(`💀 满意度失衡新增 ${added} 名罪犯`);
+}
+
+function enforceSecurity(people, rng, securityCount, year, log) {
+  if (year < 5 || securityCount <= 0) return;
+  const quota = securityCount < 10 ? Math.floor(securityCount / 2) : securityCount;
+  const criminals = people.filter(p => p.isCriminal).slice(0, quota);
+  let reformed = 0, removed = 0;
+  for (const criminal of criminals) {
+    if (rng.chance(0.4)) {
+      criminal.isCriminal = false; criminal.isInflated = false;
+      criminal.klass = CLASS.FARMER; criminal.role = null; criminal.satisfaction = 0;
+      reformed++;
+    } else {
+      const index = people.indexOf(criminal);
+      if (index >= 0) people.splice(index, 1);
+      removed++;
+    }
+  }
+  if (criminals.length && log) log.push(`🚓 治安官消除 ${criminals.length} 名罪犯（从良 ${reformed}，移除 ${removed}）`);
 }
 
 function plunder(people, rng, log) {
   if (!people.length) return;
   const criminals = people.filter(p => p.isCriminal);
   for (const c of criminals) {
-    const target = people[rng.int(0, people.length - 1)];
-    if (target.id === c.id) continue;
+    const victims = people.filter(p => !p.isCriminal && p.id !== c.id);
+    if (!victims.length) break;
+    const target = victims[rng.int(0, victims.length - 1)];
     const loot = Math.min(target.grain * 0.3, 20);
     if (loot > 0) {
-      target.grain -= loot; c.grain += loot; target.satisfaction -= 1;
+      target.grain -= loot; target.satisfaction -= 1;
     }
   }
   if (criminals.length && log) log.push(`💀 ${criminals.length} 名罪犯进行了掠夺`);
 }
 
 function birth(people, rng, cfg, log) {
-  const ranges = {
-    [CLASS.FARMER]: [0.1, 0.4],
-    [CLASS.WORKER]: [0.2, 0.8],
-    [CLASS.MERCHANT]: [0.1, 0.6],
+  if (people.length >= cfg.populationHardCap) return;
+  const rates = {
+    [CLASS.FARMER]: cfg.birthRateFarmer,
+    [CLASS.WORKER]: cfg.birthRateWorker,
+    [CLASS.MERCHANT]: cfg.birthRateMerchant,
   };
   let births = 0;
   const summary = [];
-  for (const klass in ranges) {
-    const pair = ranges[klass];
-    const count = people.filter(p => p.klass === klass && !p.isCriminal).length;
-    if (!count) continue;
-    const willingness = rng.uniform(pair[0], pair[1]);
-    const n = Math.floor(willingness * 0.5 * count);
+  const pressure = Math.max(0, 1 - people.length / cfg.populationSoftCap);
+  const resourceFactor = Math.max(0.15, Math.min(1, people.filter(p => !p.isCriminal && p.grain >= cfg.grainReserveNeed).length / Math.max(1, people.length)));
+  for (const klass in rates) {
+    const fertile = people.filter(p => p.klass === klass && !p.isCriminal && p.age >= cfg.birthAgeMin && p.age <= cfg.birthAgeMax);
+    const males = fertile.filter(p => p.gender === 'male').length;
+    const females = fertile.filter(p => p.gender === 'female').length;
+    const couples = Math.min(males, females);
+    if (!couples) continue;
+    const rate = Math.max(0, rates[klass] + (cfg.yearlyBirthBonus || 0)) * pressure * resourceFactor;
+    let n = 0;
+    for (let i = 0; i < couples; i++) if (rng.chance(rate)) n++;
+    n = Math.min(n, cfg.populationHardCap - people.length);
     for (let i = 0; i < n; i++) {
       const baby = createPerson(rng, klass, 0);
       baby.grain = 5; baby.product = 1;
       people.push(baby);
     }
     births += n;
-    if (n) summary.push(`${className(klass)} ${n} 人(a=${willingness.toFixed(2)})`);
+    if (n) summary.push(`${className(klass)} ${n} 人（${couples} 对育龄伴侣）`);
   }
   if (births && log) log.push(`👶 新生 ${births} 人：${summary.join('，')}`);
 }
 
 function ageAndDie(people, rng, cfg, log) {
-  let deaths = 0;
+  const causes = { accident:0, age:0, starvation:0 };
   for (let i = people.length - 1; i >= 0; i--) {
     const p = people[i]; p.age += 1;
-    if (rng.chance(deathProb(p.age, cfg.deathStartAge, cfg.deathHardCap))) {
-      people.splice(i, 1); deaths++;
+    let cause = null;
+    if (rng.chance(cfg.accidentDeathRate)) cause = 'accident';
+    else if (rng.chance(deathProb(p.age, cfg.deathStartAge, cfg.deathHardCap))) cause = 'age';
+    else if (p.grain < 0 && rng.chance(Math.min(0.5, cfg.starvationDeathRate + Math.abs(p.grain)/200))) cause = 'starvation';
+    if (cause) {
+      people.splice(i, 1); causes[cause]++;
     }
   }
-  if (deaths && log) log.push(`🪦 ${deaths} 人逝世`);
+  const deaths = causes.accident + causes.age + causes.starvation;
+  if (deaths && log) log.push(`🪦 ${deaths} 人逝世（事故 ${causes.accident}、年老 ${causes.age}、饥饿 ${causes.starvation}）`);
 }
 
 function classMobility(people, log) {
@@ -104,7 +143,7 @@ function classMobility(people, log) {
   }
   for (let i = order.length - 1; i > 0; i--) {
     const from = order[i], to = order[i - 1];
-    const losers = people.filter(p => p.klass === from && p.grain < 0).sort((a, b) => a.grain - b.grain);
+    const losers = people.filter(p => p.klass === from && !p.isCriminal && p.grain < 0).sort((a, b) => a.grain - b.grain);
     if (losers.length) {
       losers[0].klass = to;
       losers[0].grain = Math.max(0, losers[0].grain);
@@ -116,4 +155,4 @@ function className(k) {
   return ({ farmer:'农民', worker:'工人', merchant:'商人', official:'公务员' })[k];
 }
 
-module.exports = { updateSatisfaction, judgeStatus, plunder, birth, ageAndDie, classMobility };
+module.exports = { updateSatisfaction, judgeStatus, enforceSecurity, plunder, birth, ageAndDie, classMobility };

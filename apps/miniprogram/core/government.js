@@ -1,11 +1,17 @@
 const { CLASS, OFFICIAL_ROLE } = require('./config.js');
 
-function assignRoles(people, policy) {
-  const officials = people.filter(p => p.klass === CLASS.OFFICIAL);
+function assignRoles(people, policy, year) {
+  year = year == null ? Infinity : year;
+  people.filter(p => p.klass === CLASS.OFFICIAL).forEach(p => { p.role = null; });
+  const officials = people.filter(p => p.klass === CLASS.OFFICIAL && !p.isCriminal);
   const target = policy.officials;
   let i = 0;
   for (const role in target) {
-    for (let n = 0; n < target[role] && i < officials.length; n++, i++) {
+    const unlocked = role !== OFFICIAL_ROLE.SECURITY || year >= 5;
+    const welfareUnlocked = role !== OFFICIAL_ROLE.WELFARE || year >= 11;
+    const militaryUnlocked = role !== OFFICIAL_ROLE.MILITARY || year >= 21;
+    const count = unlocked && welfareUnlocked && militaryUnlocked ? target[role] : 0;
+    for (let n = 0; n < count && i < officials.length; n++, i++) {
       officials[i].role = role;
     }
   }
@@ -14,20 +20,25 @@ function assignRoles(people, policy) {
 
 function collectTax(people, policy, log) {
   let total = 0;
-  for (const p of people) {
-    if (p.isCriminal) continue;
+  const taxOfficerCount = people.filter(p => p.role === OFFICIAL_ROLE.TAX).length;
+  const taxable = people.filter(p => !p.isCriminal && p.klass !== CLASS.OFFICIAL);
+  const covered = taxable.slice(0, taxOfficerCount * 100);
+  for (const p of covered) {
     let tax = 0;
     if (p.klass === CLASS.FARMER) tax = Math.max(0, p.grain * policy.tax.farmer);
     else if (p.klass === CLASS.WORKER) tax = Math.max(0, p.product * 3 * policy.tax.worker);
     else if (p.klass === CLASS.MERCHANT) tax = Math.max(0, p.grain * 0.1 * policy.tax.merchant);
     p.grain -= tax; total += tax;
   }
-  if (log) log.push(`💰 税收 +${total.toFixed(1)}`);
+  if (log) {
+    const uncovered = taxable.length - covered.length;
+    log.push(`💰 税收 +${total.toFixed(1)}（${taxOfficerCount} 名税务官管辖 ${covered.length} 人${uncovered > 0 ? `，${uncovered} 人未纳入征税` : ''}）`);
+  }
   return total;
 }
 
 function payWages(people, treasury, cfg, log) {
-  const officials = people.filter(p => p.klass === CLASS.OFFICIAL);
+  const officials = people.filter(p => p.klass === CLASS.OFFICIAL && !p.isCriminal);
   let cost = 0;
   for (const o of officials) {
     if (treasury - cost >= cfg.govWage) {
@@ -39,10 +50,10 @@ function payWages(people, treasury, cfg, log) {
 }
 
 function educate(people, cfg, log) {
-  const teachers = people.filter(p => p.role === OFFICIAL_ROLE.TEACHER);
+  const teachers = people.filter(p => !p.isCriminal && p.role === OFFICIAL_ROLE.TEACHER);
   if (!teachers.length) return;
   const students = people
-    .filter(p => p.klass !== CLASS.OFFICIAL && p.intelligence < 100)
+    .filter(p => !p.isCriminal && p.klass !== CLASS.OFFICIAL && p.intelligence < 100)
     .slice(0, teachers.length * cfg.teacherPerStudents);
   for (const s of students) {
     s.intelligence = Math.min(100, s.intelligence + cfg.intelligenceGainPerYear);
@@ -58,7 +69,7 @@ function military(treasury, policy, log) {
 }
 
 function securityCount(people) {
-  return people.filter(p => p.role === OFFICIAL_ROLE.SECURITY).length;
+  return people.filter(p => !p.isCriminal && p.role === OFFICIAL_ROLE.SECURITY).length;
 }
 
 module.exports = { assignRoles, collectTax, payWages, educate, military, securityCount };

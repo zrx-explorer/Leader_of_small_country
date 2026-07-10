@@ -4,13 +4,19 @@ const OFFICIAL_ROLE = Object.freeze({ TAX:'tax', SECURITY:'security', WELFARE:'w
 
 const DEFAULT_CONFIG = Object.freeze({
   grainNeed:10, grainReserveNeed:20, productNeedBase:1, productReserveNeed:3,
-  productDemandLow:12, productDemandHigh:15, rebelThreshold:-30, inflatedThreshold:15,
+  productDemandLow:12, productDemandHigh:15, rebelThreshold:-10, inflatedThreshold:24,
+  lowCrimeChance:0.12, highCrimeChance:0.03, crimeStartYear:6,
   farmerProdMean:180, farmerProdJitter:18, workerProdMean:30, workerProdJitter:1.5, productionCost:1.5,
   taxFarmer:0.05, taxWorker:0.08, taxMerchant:0.10,
   govWage:10, militaryRatio:0.05,
+  securityUnlockYear:5, welfareUnlockYear:11, militaryOfficialUnlockYear:21,
   teacherPerStudents:10, intelligenceGainPerYear:0.25, intelligenceCap:5, satisfactionFromEdu:0.5,
-  birthAgeMin:18, birthAgeMax:30, deathStartAge:50, deathHardCap:95,
-  bucketModeThreshold:200,
+  birthAgeMin:18, birthAgeMax:40,
+  birthRateFarmer:0.22, birthRateWorker:0.18, birthRateMerchant:0.14,
+  populationSoftCap:800, populationHardCap:2000,
+  accidentDeathRate:0.01, starvationDeathRate:0.08,
+  deathStartAge:50, deathHardCap:95,
+  bucketModeThreshold:300,
 });
 
 const CHAPTERS = [

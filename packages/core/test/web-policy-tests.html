@@ -1,0 +1,53 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>web policy tests running</title>
+<pre id="result">running</pre>
+<iframe id="game" src="../../../apps/web/index.html" hidden></iframe>
+<script>
+const lines = [];
+function assert(value, message) { if (!value) throw new Error(message); }
+game.onload = () => setTimeout(() => {
+  try {
+    const ctrl = game.contentWindow.__game;
+    const state = ctrl.state;
+    while (state.people.length < 101) state.people.push({...state.people[0], id:1000 + state.people.length});
+    state.stats.total = state.people.length;
+    state.year = 11;
+    state.people.forEach(p => { if (p.role === 'welfare') p.role = null; });
+    assert(!ctrl.canAdjustTax(), '人口过百且无民生官时仍可调税');
+    state.people[0].role = 'welfare';
+    assert(ctrl.taxInterval() === 10 && ctrl.canAdjustTax(), '1名民生官应每10年调税');
+    ctrl.setTax('farmer', .12);
+    assert(state.lastTaxChangeYear === 11, '调税年份没有记录');
+    state.year = 20;
+    assert(!ctrl.canAdjustTax(), '冷却未满10年时可调税');
+    state.year = 21;
+    assert(ctrl.canAdjustTax(), '冷却满10年后仍不可调税');
+    for (let i = 1; i < 11; i++) state.people[i].role = 'welfare';
+    assert(ctrl.taxInterval() === 1, '11名民生官应每年调税');
+    lines.push('PASS 民生官员税率冷却规则');
+
+    state.year = 10;
+    state.policy.officials.welfare = 0;
+    ctrl.setOfficial('welfare', 3);
+    assert(state.policy.officials.welfare === 0, '第10年提前解锁民生官员');
+    state.year = 13;
+    ctrl.setOfficial('welfare', 3);
+    assert(state.policy.officials.welfare === 3, '解锁后无法调整民生官员');
+    state.year = 19;
+    state.policy.officials.military = 0;
+    ctrl.setOfficial('military', 3);
+    assert(state.policy.officials.military === 0, '经营未满20年时提前解锁军事官员');
+    state.year = 22;
+    ctrl.setOfficial('military', 3);
+    assert(state.policy.officials.military === 3, '解锁后无法调整军事官员');
+    lines.push('PASS Web岗位解锁限制');
+  } catch (error) {
+    lines.push(`FAIL ${error.message}`);
+  }
+  const failed = lines.filter(x => x.startsWith('FAIL')).length;
+  result.textContent = lines.join('\n');
+  document.title = failed ? `web policy tests failed (${failed})` : 'web policy tests passed';
+  document.body.dataset.failed = String(failed);
+}, 100);
+</script>

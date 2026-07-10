@@ -16,6 +16,7 @@ export function createPerson(rng, klass, age) {
     name: randomName(rng),
     klass,
     age: age ?? rng.int(18, 40),
+    gender: rng.chance(0.5) ? 'male' : 'female',
     intelligence: clampInt(rng.normal(50, 15)),
     satisfaction: 12,
     grain: 42,    // 初始粮食储备
@@ -61,26 +62,33 @@ export function aggregate(people) {
     classCount: { farmer: 0, worker: 0, merchant: 0, official: 0 },
   };
   if (!people.length) return stats;
-  let sumS = 0, sumI = 0, sumW = 0;
+  let sumS = 0, satCount = 0, sumI = 0, sumW = 0;
+  const classSatCount = { farmer: 0, worker: 0, merchant: 0, official: 0 };
   for (const p of people) {
     stats.byClass[p.klass]++;
-    sumS += p.satisfaction;
+    if (!p.isCriminal) {
+      sumS += p.satisfaction;
+      satCount++;
+      stats.classSat[p.klass] += p.satisfaction;
+      classSatCount[p.klass]++;
+    }
     sumI += p.intelligence;
     const w = p.grain + p.product * 2;
     sumW += w;
     stats.classWealth[p.klass] += w;
-    stats.classSat[p.klass] += p.satisfaction;
     stats.classCount[p.klass]++;
     if (p.isCriminal) stats.criminals++;
     if (p.isInflated) stats.inflated++;
   }
-  stats.avgSatisfaction = +(sumS / people.length).toFixed(2);
+  stats.avgSatisfaction = satCount ? +(sumS / satCount).toFixed(2) : 0;
   stats.avgIntelligence = +(sumI / people.length).toFixed(2);
   stats.avgWealth = +(sumW / people.length).toFixed(2);
   for (const k of Object.keys(stats.classCount)) {
     if (stats.classCount[k] > 0) {
       stats.classWealth[k] = +(stats.classWealth[k] / stats.classCount[k]).toFixed(2);
-      stats.classSat[k] = +(stats.classSat[k] / stats.classCount[k]).toFixed(2);
+      stats.classSat[k] = classSatCount[k]
+        ? +(stats.classSat[k] / classSatCount[k]).toFixed(2)
+        : 0;
     }
   }
   return stats;

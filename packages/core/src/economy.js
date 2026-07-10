@@ -36,7 +36,7 @@ export function workersProduce(people, cfg, rng) {
 export function trade(people, cfg, rng, log) {
   const workers = people.filter(p => p.klass === CLASS.WORKER && !p.isCriminal);
   const merchants = people.filter(p => p.klass === CLASS.MERCHANT && !p.isCriminal);
-  const buyers = people.filter(p => p.klass === CLASS.FARMER || p.klass === CLASS.OFFICIAL);
+  const buyers = people.filter(p => !p.isCriminal && (p.klass === CLASS.FARMER || p.klass === CLASS.OFFICIAL));
 
   if (!merchants.length || !workers.length || !buyers.length) return;
 

@@ -3,6 +3,55 @@
  * 每个事件 { id, title, desc, condition(state), options:[{label, apply(state)}] }
  */
 
+function applyPlague(state, plague, treatmentFactor = 1) {
+  let infected = 0, dead = 0, propertyLoss = 0;
+  for (let i = state.people.length - 1; i >= 0; i--) {
+    const p = state.people[i];
+    if (!state.rng.chance(plague.infectionRate * treatmentFactor)) continue;
+    infected++;
+    const grainLoss = Math.min(Math.max(0, p.grain), plague.grainLoss * treatmentFactor);
+    const productLoss = Math.min(Math.max(0, p.product), plague.productLoss * treatmentFactor);
+    p.grain -= grainLoss;
+    p.product -= productLoss;
+    propertyLoss += grainLoss + productLoss * 2;
+    const wealth = Math.max(0, p.grain + p.product * 2);
+    const wealthProtection = 1 / (1 + wealth / 80);
+    if (state.rng.chance(plague.fatalityRate * treatmentFactor * wealthProtection)) {
+      state.people.splice(i, 1);
+      dead++;
+    }
+  }
+  state.log.push(`${plague.name}感染 ${infected} 人，死亡 ${dead} 人，定量财产损失折合 ${propertyLoss.toFixed(1)}`);
+}
+
+function plagueEvent(plague) {
+  return {
+    id: `plague_${plague.id}`,
+    title: `瘟疫：${plague.name}`,
+    desc: plague.desc,
+    weight: 1,
+    condition: s => s.year >= 5 && s.stats.total >= 30,
+    options: [
+      {
+        label: '封城治疗（国库 -300，传播与致死降低）',
+        storyHook: { speaker: '医官', mood: 'focused', topic: 'plague_lockdown' },
+        apply: s => { s.treasury -= 300; applyPlague(s, plague, 0.35); },
+      },
+      {
+        label: '不闻不问（按个人资产抵御死亡）',
+        storyHook: { speaker: '医官', mood: 'desperate', topic: 'plague_ignored' },
+        apply: s => applyPlague(s, plague, 1),
+      },
+    ],
+  };
+}
+
+const PLAGUES = [
+  plagueEvent({ id: 'black', name: '黑死热', desc: '传播较慢但致死率极高，富裕者更有能力获得救治。', infectionRate: 0.30, fatalityRate: 0.55, grainLoss: 4, productLoss: 0 }),
+  plagueEvent({ id: 'flu', name: '赤风流感', desc: '传染率极高、致死率较低，患病者会固定损失粮食与产品。', infectionRate: 0.80, fatalityRate: 0.045, grainLoss: 8, productLoss: 1 }),
+  plagueEvent({ id: 'pox', name: '灰斑疫', desc: '传播与致死率居中，并会造成一定财产损失。', infectionRate: 0.48, fatalityRate: 0.20, grainLoss: 6, productLoss: 0.5 }),
+];
+
 export const EVENTS = [
   {
     id: 'drought',
@@ -16,7 +65,7 @@ export const EVENTS = [
         storyHook: { speaker: '民生官', mood: 'relieved', topic: 'disaster_relief' },
         apply: s => {
           s.treasury -= 200;
-          s.people.forEach(p => p.grain += 5);
+          s.people.filter(p => !p.isCriminal).forEach(p => p.grain += 5);
           s.log.push('开仓赈灾，民心稍安');
         }
       },
@@ -87,29 +136,10 @@ export const EVENTS = [
         apply: s => { s.treasury -= 100; s.policy.officials.security += 1; } },
       { label: '安抚为先（粮食赈济）',
         storyHook: { speaker: '流民代表', mood: 'wary', topic: 'unrest_relief' },
-        apply: s => { s.people.filter(p => p.satisfaction < 0).forEach(p => { p.grain += 10; p.satisfaction += 2; }); } },
+        apply: s => { s.people.filter(p => !p.isCriminal && p.satisfaction < 0).forEach(p => { p.grain += 10; p.satisfaction += 2; }); } },
     ]
   },
-  {
-    id: 'plague',
-    title: '瘟疫蔓延',
-    desc: '城中现疫情，民众惶恐。',
-    weight: 3,
-    condition: s => s.year >= 5 && s.stats.total >= 30,
-    options: [
-      { label: '封城治疗（国库 -300）',
-        storyHook: { speaker: '医官', mood: 'focused', topic: 'plague_lockdown' },
-        apply: s => { s.treasury -= 300; s.log.push('疫情得到控制'); } },
-      { label: '不闻不问（随机 5% 死亡）',
-        storyHook: { speaker: '医官', mood: 'desperate', topic: 'plague_ignored' },
-        apply: s => {
-          const dead = Math.floor(s.people.length * 0.05);
-          for (let i = 0; i < dead; i++) s.people.splice(s.rng.int(0, s.people.length-1), 1);
-          s.log.push(`瘟疫致 ${dead} 人死亡`);
-        }
-      },
-    ]
-  },
+  ...PLAGUES,
   {
     id: 'noble_invite',
     title: '邻国联姻',
