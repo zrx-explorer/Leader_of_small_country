@@ -1,5 +1,5 @@
 // app.js
-const { newGame, nextYear, applyEventOption, serialize, deserialize } = require('./core/game.js');
+const { newGame, nextYear, applyEventOption, applyWarDecision, estimateWarCost, treatyTaxFloor, serialize, deserialize } = require('./core/game.js');
 
 App({
   globalData: {
@@ -20,6 +20,9 @@ App({
   api: {
     nextYear: (state) => nextYear(state),
     applyEventOption: (state, idx) => applyEventOption(state, idx),
+    applyWarDecision: (state, decision) => applyWarDecision(state, decision),
+    estimateWarCost: (state, plan) => estimateWarCost(state, plan),
+    treatyTaxFloor: (state) => treatyTaxFloor(state),
     save(state) {
       wx.setStorageSync(getApp().globalData.SAVE_KEY, serialize(state));
     },

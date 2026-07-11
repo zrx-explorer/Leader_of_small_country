@@ -5,6 +5,7 @@ const { farmersProduce, workersProduce, trade, consume } = require('./economy.js
 const { updateSatisfaction, judgeStatus, enforceSecurity, plunder, birth, ageAndDie, classMobility } = require('./society.js');
 const { assignRoles, collectTax, payWages, educate, military, securityCount } = require('./government.js');
 const { rollEvent } = require('./events.js');
+const { maybeStartWar, applyWarDecision:resolveWar, estimateWarCost, treatyTaxFloor, enforceTreatyTaxFloor, settleTreatyTax } = require('./war.js');
 
 function defaultPolicy() {
   return {
@@ -27,7 +28,7 @@ function newGame(opt) {
     policy: defaultPolicy(),
     treasury: 1000, people,
     log: [`【${ch.name}】游戏开始，初始人口 ${people.length}`],
-    history: [], flags: {}, pendingEvent: null, over: null,
+    history: [], flags: {}, pendingEvent: null, pendingWar:null, treaty:null, lastWarYear:null, warHistory:[], over: null,
     consecutiveBadYears: 0,
     consecutiveCrimeYears: 0,
     consecutiveLowSatYears: 0,
@@ -48,6 +49,12 @@ function applyEventOption(state, idx) {
   opt.apply(state);
   if (opt.storyHook) state.storyHooks.push(opt.storyHook);
   state.pendingEvent = null;
+}
+
+function applyWarDecision(state, decision) {
+  const result = resolveWar(state, decision);
+  state.stats = aggregate(state.people);
+  return result;
 }
 
 function rollYearModifiers(state, log) {
@@ -75,16 +82,18 @@ function rollYearModifiers(state, log) {
 
 function nextYear(state) {
   if (state.over) return state;
-  if (state.pendingEvent) return state;
+  if (state.pendingEvent || state.pendingWar) return state;
   const log = [];
   state.log = log;
   log.push(`━━ 第 ${state.year} 年 ━━`);
   const yearCfg = rollYearModifiers(state, log);
+  enforceTreatyTaxFloor(state, log);
   assignRoles(state.people, state.policy, state.year);
   farmersProduce(state.people, yearCfg, state.rng);
   workersProduce(state.people, yearCfg, state.rng);
   trade(state.people, yearCfg, state.rng, log);
-  state.treasury += collectTax(state.people, state.policy, log);
+  const taxRevenue = collectTax(state.people, state.policy, log);
+  state.treasury += settleTreatyTax(state, taxRevenue, log);
   state.treasury -= payWages(state.people, state.treasury, yearCfg, log);
   state.treasury -= military(state.treasury, state.policy, log);
   educate(state.people, yearCfg, log);
@@ -101,7 +110,10 @@ function nextYear(state) {
   recordPersonHistory(state.people, state.year);
   state.history.push(snapshot(state));
   judgeOutcome(state);
-  if (!state.over) state.pendingEvent = rollEvent(state);
+  if (!state.over) {
+    maybeStartWar(state);
+    if (!state.pendingWar) state.pendingEvent = rollEvent(state);
+  }
   state.year += 1;
   return state;
 }
@@ -114,6 +126,7 @@ function snapshot(s) {
     avgIntelligence: s.stats.avgIntelligence,
     avgWealth: s.stats.avgWealth,
     criminals: s.stats.criminals,
+    treaty: s.treaty ? Object.assign({}, s.treaty) : null,
     modifiers: Object.assign({}, s.modifiers),
     byClass: Object.assign({}, s.stats.byClass),
   };
@@ -163,6 +176,8 @@ function serialize(s) {
     flags: s.flags, history: s.history,
     storyHooks: s.storyHooks, modifiers: s.modifiers,
     lastTaxChangeYear: s.lastTaxChangeYear,
+    pendingWar:s.pendingWar, treaty:s.treaty,
+    lastWarYear:s.lastWarYear, warHistory:s.warHistory,
     rngState: s.rng.s,
   });
 }
@@ -175,9 +190,11 @@ function deserialize(json) {
   s.policy = o.policy; s.flags = o.flags; s.history = o.history;
   s.storyHooks = o.storyHooks || []; s.modifiers = o.modifiers || {};
   s.lastTaxChangeYear = o.lastTaxChangeYear == null ? null : o.lastTaxChangeYear;
+  s.pendingWar=o.pendingWar||null; s.treaty=o.treaty||null;
+  s.lastWarYear=o.lastWarYear==null?null:o.lastWarYear; s.warHistory=o.warHistory||[];
   s.rng.s = o.rngState;
   s.stats = aggregate(s.people);
   return s;
 }
 
-module.exports = { newGame, nextYear, applyEventOption, serialize, deserialize, CHAPTERS, CLASS };
+module.exports = { newGame, nextYear, applyEventOption, applyWarDecision, estimateWarCost, treatyTaxFloor, serialize, deserialize, CHAPTERS, CLASS };

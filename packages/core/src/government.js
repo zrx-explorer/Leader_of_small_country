@@ -80,7 +80,7 @@ export function educate(people, cfg, log) {
 
 /** 军事开支 */
 export function military(treasury, policy, log) {
-  const cost = treasury * policy.militaryRatio;
+  const cost = Math.max(0, treasury) * policy.militaryRatio;
   if (log && cost > 0) log.push(`⚔ 军事支出 -${cost.toFixed(1)}`);
   return cost;
 }

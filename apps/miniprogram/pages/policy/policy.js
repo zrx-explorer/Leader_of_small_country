@@ -7,7 +7,7 @@ Page({
     milRatio: 5,
     policyLocked: false, taxLocked: false, securityLocked: true,
     welfareLocked: true, militaryLocked: true,
-    helpRole: '', policyTip: '', taxTip: '',
+    helpRole: '', policyTip: '', taxTip: '', taxFloor:0,
   },
   onShow() {
     const s = app.globalData.state;
@@ -25,11 +25,12 @@ Page({
       welfareLocked: s.year < 11 || !this.canAdjustPolicy(),
       militaryLocked: s.year < 21 || !this.canAdjustPolicy(),
       policyTip: this.policyTip(), taxTip: this.taxTip(),
+      taxFloor: Math.round(app.api.treatyTaxFloor(s) * 100),
     });
   },
   canAdjustPolicy() {
     const s = app.globalData.state;
-    return !s.over && !s.pendingEvent && (s.year - 1) % 3 === 0;
+    return !s.over && !s.pendingEvent && !s.pendingWar && (s.year - 1) % 3 === 0;
   },
   welfareCount() {
     return app.globalData.state.people.filter(p => !p.isCriminal && p.role === 'welfare').length;
@@ -40,7 +41,7 @@ Page({
   },
   canAdjustTax() {
     const s = app.globalData.state;
-    if (s.over || s.pendingEvent) return false;
+    if (s.over || s.pendingEvent || s.pendingWar) return false;
     if (s.people.length <= 100) return this.canAdjustPolicy();
     if (!this.welfareCount()) return false;
     if (s.lastTaxChangeYear == null || s.lastTaxChangeYear === s.year) return true;
@@ -53,6 +54,8 @@ Page({
   },
   taxTip() {
     const s = app.globalData.state;
+    const floor=app.api.treatyTaxFloor(s);
+    if (floor) return `条约期内税率不得低于${Math.round(floor*100)}%`;
     if (s.people.length <= 100) return '人口不超过100：税率随常规政策窗口调整';
     const count = this.welfareCount();
     if (!count) return '人口超过100且无民生官员：税率锁定';
@@ -64,7 +67,7 @@ Page({
     const key = e.currentTarget.dataset.key;
     const s = app.globalData.state;
     const taxKeys = ['taxFarmer', 'taxWorker', 'taxMerchant'];
-    const securityAllowed = key === 'offSec' && s.year >= 5 && !s.over && !s.pendingEvent;
+    const securityAllowed = key === 'offSec' && s.year >= 5 && !s.over && !s.pendingEvent && !s.pendingWar;
     const welfareAllowed = key === 'offWel' && s.year >= 11 && this.canAdjustPolicy();
     const militaryAllowed = key === 'offMil' && s.year >= 21 && this.canAdjustPolicy();
     const taxAllowed = taxKeys.indexOf(key) >= 0 && this.canAdjustTax();
@@ -74,7 +77,7 @@ Page({
       this.onShow();
       return;
     }
-    const value = e.detail.value;
+    const value = taxKeys.indexOf(key) >= 0 ? Math.max(e.detail.value, Math.round(app.api.treatyTaxFloor(s)*100)) : e.detail.value;
     const p = s.policy;
     const oldTax = { taxFarmer:p.tax.farmer*100, taxWorker:p.tax.worker*100, taxMerchant:p.tax.merchant*100 }[key];
     const map = {

@@ -3,7 +3,7 @@
  */
 import {
   newGame, nextYear as advance, applyEventOption,
-  serialize, deserialize,
+  applyWarDecision, estimateWarCost, treatyTaxFloor, serialize, deserialize,
 } from '../../../packages/core/src/game.js';
 import { UI } from './ui.js';
 
@@ -26,7 +26,7 @@ class Controller {
 
   // === 玩家交互 ===
   canAdjustPolicy() {
-    return !this.state.over && !this.state.pendingEvent && (this.state.year - 1) % 3 === 0;
+    return !this.state.over && !this.state.pendingEvent && !this.state.pendingWar && (this.state.year - 1) % 3 === 0;
   }
   welfareCount() {
     return this.state.people.filter(p => !p.isCriminal && p.role === 'welfare').length;
@@ -37,7 +37,7 @@ class Controller {
   }
   canAdjustTax() {
     const s = this.state;
-    if (s.over || s.pendingEvent) return false;
+    if (s.over || s.pendingEvent || s.pendingWar) return false;
     if (s.people.length <= 100) return this.canAdjustPolicy();
     if (this.welfareCount() === 0) return false;
     if (s.lastTaxChangeYear == null || s.lastTaxChangeYear === s.year) return true;
@@ -45,13 +45,14 @@ class Controller {
   }
   setTax(klass, v) {
     if (!this.canAdjustTax()) return;
+    v = Math.max(v, treatyTaxFloor(this.state));
     if (this.state.policy.tax[klass] === v) return;
     this.state.policy.tax[klass] = v;
     this.state.lastTaxChangeYear = this.state.year;
   }
   setOfficial(role, v) {
     if (role === 'security') {
-      if (this.state.over || this.state.pendingEvent || this.state.year < 5) return;
+      if (this.state.over || this.state.pendingEvent || this.state.pendingWar || this.state.year < 5) return;
     } else {
       if (!this.canAdjustPolicy()) return;
       if (role === 'welfare' && this.state.year < 11) return;
@@ -66,7 +67,7 @@ class Controller {
 
   nextYear() {
     if (this.state.over) return;
-    if (this.state.pendingEvent) {
+    if (this.state.pendingEvent || this.state.pendingWar) {
       // 事件未决策则提示
       return;
     }
@@ -78,6 +79,13 @@ class Controller {
     applyEventOption(this.state, idx);
     this.ui.render(this.state);
   }
+
+  chooseWar(decision) {
+    applyWarDecision(this.state, decision);
+    this.ui.render(this.state);
+  }
+
+  estimateWar(plan) { return estimateWarCost(this.state, plan); }
 
   save() {
     try {

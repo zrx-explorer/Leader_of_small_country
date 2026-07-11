@@ -9,7 +9,8 @@ import { createPerson, aggregate } from '../src/person.js';
 import { assignRoles, collectTax } from '../src/government.js';
 import { birth, ageAndDie, judgeStatus, enforceSecurity, plunder } from '../src/society.js';
 import { EVENTS } from '../src/events.js';
-import { newGame, nextYear, applyEventOption } from '../src/game.js';
+import { newGame, nextYear, applyEventOption, applyWarDecision, estimateWarCost, treatyTaxFloor } from '../src/game.js';
+import { maybeStartWar, settleTreatyTax } from '../src/war.js';
 
 const results = [];
 function test(name, fn) {
@@ -112,6 +113,85 @@ test('瘟疫死亡率随资产增加而降低', () => {
   assert(state.people.includes(rich), '富裕者的资产保护没有生效');
 });
 
+test('战争系统在经营20年后才开启', () => {
+  const state = newGame({chapter:4, seed:31});
+  state.rng.chance = () => true;
+  state.year = 19;
+  assert(!maybeStartWar(state), '第19年提前触发战争');
+  state.year = 20;
+  assert(maybeStartWar(state), '第20年结算后没有开放战争');
+});
+
+test('征兵、补给和装备会递增战争花费', () => {
+  const state = newGame({chapter:4, seed:32});
+  const low = estimateWarCost(state, {conscriptionRate:.1,supplyLevel:1,equipmentLevel:1});
+  const medium = estimateWarCost(state, {conscriptionRate:.2,supplyLevel:2,equipmentLevel:2});
+  const high = estimateWarCost(state, {conscriptionRate:.4,supplyLevel:3,equipmentLevel:3});
+  assert(low.troops < medium.troops && medium.troops < high.troops, '征兵规模没有增加兵力');
+  assert(low.total < medium.total && medium.total < high.total, '战争投入没有随配置增加');
+});
+
+test('战争会同时消耗人口和国库', () => {
+  const state = newGame({chapter:4, seed:33});
+  state.year = 21; state.treasury = 20000;
+  state.pendingWar = {enemyName:'测试敌国',enemyStrength:75,eligible:300,offeredTreaty:{duration:4,upfront:500,annualFlat:100,taxShare:.3,minTaxRate:.1}};
+  const beforePop = state.people.length, beforeTreasury = state.treasury;
+  const result = applyWarDecision(state,{action:'fight',conscriptionRate:.3,supplyLevel:2,equipmentLevel:2});
+  assert(result.casualties > 0 && state.people.length < beforePop, '战争没有造成人口损失');
+  assert(state.treasury < beforeTreasury, '战争没有消耗国库');
+});
+
+test('赔款条约限制最低税率并抽取税收', () => {
+  const state = newGame({chapter:4, seed:34});
+  state.year = 21;
+  state.pendingWar = {enemyName:'测试敌国',enemyStrength:80,eligible:300,offeredTreaty:{duration:5,upfront:500,annualFlat:100,taxShare:.3,minTaxRate:.12}};
+  applyWarDecision(state,{action:'treaty'});
+  assert(treatyTaxFloor(state) === .12, '条约税率下限未生效');
+  assert(Object.values(state.policy.tax).every(v => v >= .12), '现有税率没有提高到条约下限');
+  assert(settleTreatyTax(state,1000,[]) === 600, '税收赔款计算不正确');
+  state.year = state.treaty.endYear + 1;
+  nextYear(state);
+  assert(!state.treaty && treatyTaxFloor(state) === 0, '条约期满后税率限制没有解除');
+});
+
+test('直接投降只收取一次性赔款', () => {
+  const state = newGame({chapter:4, seed:35});
+  state.year = 21; state.treasury = 10000;
+  state.pendingWar = {enemyName:'测试敌国',enemyStrength:100,eligible:300,offeredTreaty:{duration:4,upfront:500,annualFlat:100,taxShare:.3,minTaxRate:.1}};
+  const before = state.treasury;
+  const result = applyWarDecision(state,{action:'surrender'});
+  assert(result.action === 'surrender' && result.cost > 0, '投降没有生成直接赔款');
+  assert(state.treasury === before - result.cost, '投降赔款没有从国库扣除');
+  assert(!state.treaty && !state.pendingWar, '直接投降错误生成了长期条约');
+});
+
+test('战争策略数值校准稳定', () => {
+  const strategies = [
+    {name:'低投入',plan:{action:'fight',conscriptionRate:.1,supplyLevel:1,equipmentLevel:1}},
+    {name:'标准',plan:{action:'fight',conscriptionRate:.2,supplyLevel:2,equipmentLevel:2}},
+    {name:'高投入',plan:{action:'fight',conscriptionRate:.3,supplyLevel:3,equipmentLevel:3}},
+  ];
+  for (const strategy of strategies) {
+    let wins=0,totalCost=0,totalLoss=0;
+    for (let seed=1;seed<=120;seed++) {
+      const state=newGame({chapter:4,seed:1000+seed});
+      state.year=21; state.treasury=30000;
+      const eligible=state.people.filter(p=>!p.isCriminal&&p.age>=18&&p.age<=50).length;
+      state.pendingWar={enemyName:'校准敌国',enemyStrength:Math.round(eligible*(.18+(seed%38)/100)),eligible,offeredTreaty:{duration:4,upfront:500,annualFlat:100,taxShare:.25,minTaxRate:.1}};
+      const before=state.people.length;
+      const result=applyWarDecision(state,strategy.plan);
+      if(result.outcome!=='defeat')wins++;
+      totalCost+=result.cost; totalLoss+=before-state.people.length;
+    }
+    const winRate=wins/120,avgCost=totalCost/120,avgLoss=totalLoss/120;
+    results.push(`INFO ${strategy.name}：胜率${(winRate*100).toFixed(0)}%，平均军费${avgCost.toFixed(0)}，平均死亡${avgLoss.toFixed(1)}`);
+    if(strategy.name==='低投入') assert(winRate<.45,'低投入胜率过高');
+    if(strategy.name==='标准') assert(winRate>.65&&winRate<1,'标准投入胜率失衡');
+    if(strategy.name==='高投入') assert(winRate>.9,'高投入胜率过低');
+    assert(avgCost>0&&avgLoss>0,'战争没有形成资源消耗');
+  }
+});
+
 test('长程人口不会突破硬上限', () => {
   let maxPopulation = 0;
   for (let seed = 1; seed <= 8; seed++) {
@@ -119,6 +199,7 @@ test('长程人口不会突破硬上限', () => {
     let years = 0;
     for (; years < 120 && !state.over; years++) {
       if (state.pendingEvent) applyEventOption(state, 0);
+      if (state.pendingWar) applyWarDecision(state, {action:'fight',conscriptionRate:.2,supplyLevel:2,equipmentLevel:2});
       nextYear(state);
       maxPopulation = Math.max(maxPopulation, state.stats.total);
       assert(state.stats.total <= state.cfg.populationHardCap, `人口达到 ${state.stats.total}`);

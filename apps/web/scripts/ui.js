@@ -44,6 +44,12 @@ export class UI {
       this.hideEnd();
       this.ctrl.restart();
     };
+    for (const id of ['war-conscription', 'war-supply', 'war-equipment']) {
+      document.getElementById(id).onchange = () => this.renderWarEstimate();
+    }
+    document.getElementById('war-fight').onclick = () => this.ctrl.chooseWar({ action:'fight', ...this.warPlan() });
+    document.getElementById('war-sign').onclick = () => this.ctrl.chooseWar({ action:'treaty' });
+    document.getElementById('war-surrender').onclick = () => this.ctrl.chooseWar({ action:'surrender' });
 
     const historyCanvas = document.getElementById('chart-history');
     historyCanvas.addEventListener('mousemove', e => {
@@ -86,7 +92,7 @@ export class UI {
 
     // 章节进度
     document.getElementById('chapter-tip').textContent =
-      `章节 ${state.chapter} · ${state.chapterName} · ${policyWindowText(state.year)}`;
+      `章节 ${state.chapter} · ${state.chapterName} · ${policyWindowText(state.year)}${state.treaty ? ` · 赔款条约至第 ${state.treaty.endYear} 年` : ''}`;
     this.syncPolicyControls(state);
     this.updatePolicyLock(state);
 
@@ -100,6 +106,8 @@ export class UI {
     // 事件
     if (state.pendingEvent) this.showEvent(state.pendingEvent);
     else this.hideEvent();
+    if (state.pendingWar) this.showWar(state.pendingWar);
+    else this.hideWar();
 
     // 结算
     if (state.over) this.showEnd(state);
@@ -217,6 +225,7 @@ export class UI {
       const out = document.getElementById(`out-${id}`);
       if (!el || !out) continue;
       el.value = value;
+      if (id.startsWith('tax-')) el.min = Math.round((state.treaty?.minTaxRate || 0) * 100);
       out.textContent = (formatters[id] || (v => v))(value);
     }
   }
@@ -232,7 +241,7 @@ export class UI {
     }
     document.querySelectorAll('.panel-policy input[type="range"]').forEach(el => {
       if (el.id.startsWith('tax-')) el.disabled = !this.ctrl.canAdjustTax();
-      else if (el.id === 'off-security') el.disabled = Boolean(state.over || state.pendingEvent || state.year < 5);
+      else if (el.id === 'off-security') el.disabled = Boolean(state.over || state.pendingEvent || state.pendingWar || state.year < 5);
       else if (el.id === 'off-welfare') el.disabled = locked || state.year < 11;
       else if (el.id === 'off-military') el.disabled = locked || state.year < 21;
       else el.disabled = locked;
@@ -283,6 +292,35 @@ export class UI {
     document.getElementById('event-modal').classList.add('hidden');
   }
 
+  warPlan() {
+    return {
+      conscriptionRate: +document.getElementById('war-conscription').value,
+      supplyLevel: +document.getElementById('war-supply').value,
+      equipmentLevel: +document.getElementById('war-equipment').value,
+    };
+  }
+
+  renderWarEstimate() {
+    if (!this.ctrl.state.pendingWar) return;
+    const estimate = this.ctrl.estimateWar(this.warPlan());
+    document.getElementById('war-estimate').textContent =
+      `预计征兵 ${estimate.troops} 人；每人费用 ${estimate.perTroop}；本次投入 ${estimate.total}`;
+  }
+
+  showWar(war) {
+    document.getElementById('war-title').textContent = `⚔ ${war.enemyName}入侵`;
+    document.getElementById('war-desc').textContent =
+      `敌军强度约 ${war.enemyStrength}，我国可征召 ${war.eligible} 名适龄公民。投入越高胜率越高，但军费和阵亡风险也会扩大。`;
+    const t = war.offeredTreaty;
+    document.getElementById('war-treaty').textContent =
+      `条约方案：立即赔款 ${t.upfront}，持续 ${t.duration} 年，每年固定赔款 ${t.annualFlat}` +
+      (t.taxShare ? `，另上缴税收 ${(t.taxShare*100).toFixed(0)}%，税率不得低于 ${(t.minTaxRate*100).toFixed(0)}%` : '，无税率条款');
+    this.renderWarEstimate();
+    document.getElementById('war-modal').classList.remove('hidden');
+  }
+
+  hideWar() { document.getElementById('war-modal').classList.add('hidden'); }
+
   showEnd(state) {
     const t = document.getElementById('end-title');
     const d = document.getElementById('end-desc');
@@ -315,7 +353,7 @@ export class UI {
 }
 
 function canAdjustPolicy(state) {
-  return !state.over && !state.pendingEvent && (state.year - 1) % 3 === 0;
+  return !state.over && !state.pendingEvent && !state.pendingWar && (state.year - 1) % 3 === 0;
 }
 
 function yearsUntilPolicyWindow(year) {
@@ -329,6 +367,7 @@ function policyWindowText(year) {
 }
 
 function taxAdjustmentText(state, ctrl) {
+  if (state.treaty?.minTaxRate) return `条约期内税率不得低于 ${(state.treaty.minTaxRate*100).toFixed(0)}%`;
   if (state.people.length <= 100) return '人口不超过 100：税率随常规政策窗口调整';
   const welfare = ctrl.welfareCount();
   if (!welfare) return '人口已超过 100：没有民生官员，税率锁定';

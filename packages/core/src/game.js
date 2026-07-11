@@ -13,6 +13,10 @@ import {
   assignRoles, collectTax, payWages, educate, military, securityCount,
 } from './government.js';
 import { rollEvent } from './events.js';
+import {
+  maybeStartWar, applyWarDecision as resolveWar, estimateWarCost,
+  treatyTaxFloor, enforceTreatyTaxFloor, settleTreatyTax,
+} from './war.js';
 
 const DEFAULT_POLICY = () => ({
   tax: { farmer: 0.05, worker: 0.08, merchant: 0.10 },
@@ -39,6 +43,10 @@ export function newGame({ chapter = 1, seed = Date.now() } = {}) {
     history: [],            // 每年统计快照
     flags: {},
     pendingEvent: null,
+    pendingWar: null,
+    treaty: null,
+    lastWarYear: null,
+    warHistory: [],
     over: null,             // null / 'win' / 'lose:reason'
     consecutiveBadYears: 0,
     consecutiveCrimeYears: 0,
@@ -62,6 +70,14 @@ export function applyEventOption(state, optionIndex) {
   if (opt.storyHook) state.storyHooks.push(opt.storyHook);
   state.pendingEvent = null;
 }
+
+export function applyWarDecision(state, decision) {
+  const result = resolveWar(state, decision);
+  state.stats = aggregate(state.people);
+  return result;
+}
+
+export { estimateWarCost, treatyTaxFloor };
 
 /** 年度随机波动：提供轻微差异，避免相同操作每局完全一致 */
 function rollYearModifiers(state, log) {
@@ -91,11 +107,12 @@ function rollYearModifiers(state, log) {
 /** 推进一年（调用前若有 pendingEvent 必须先 applyEventOption） */
 export function nextYear(state) {
   if (state.over) return state;
-  if (state.pendingEvent) return state;  // 必须先决策事件
+  if (state.pendingEvent || state.pendingWar) return state;  // 必须先决策
   const log = [];
   state.log = log;
   log.push(`━━ 第 ${state.year} 年 ━━`);
   const yearCfg = rollYearModifiers(state, log);
+  enforceTreatyTaxFloor(state, log);
 
   // ① 分配公务员岗位
   assignRoles(state.people, state.policy, state.year);
@@ -108,7 +125,8 @@ export function nextYear(state) {
   trade(state.people, yearCfg, state.rng, log);
 
   // ④ 税收 / 工资 / 军事
-  state.treasury += collectTax(state.people, state.policy, log);
+  const taxRevenue = collectTax(state.people, state.policy, log);
+  state.treasury += settleTreatyTax(state, taxRevenue, log);
   state.treasury -= payWages(state.people, state.treasury, state.cfg, log);
   state.treasury -= military(state.treasury, state.policy, log);
 
@@ -142,9 +160,10 @@ export function nextYear(state) {
   // ⑫ 胜负判定
   judgeOutcome(state);
 
-  // ⑬ 抽取下年事件
+  // ⑬ 战争优先于普通事件
   if (!state.over) {
-    state.pendingEvent = rollEvent(state);
+    maybeStartWar(state);
+    if (!state.pendingWar) state.pendingEvent = rollEvent(state);
   }
 
   state.year += 1;
@@ -161,6 +180,7 @@ function snapshot(s) {
     avgIntelligence: s.stats.avgIntelligence,
     avgWealth: s.stats.avgWealth,
     criminals: s.stats.criminals,
+    treaty: s.treaty ? { ...s.treaty } : null,
     modifiers: { ...s.modifiers },
     byClass: { ...s.stats.byClass },
   };
@@ -217,6 +237,8 @@ export function serialize(s) {
     flags: s.flags, history: s.history,
     storyHooks: s.storyHooks, modifiers: s.modifiers,
     lastTaxChangeYear: s.lastTaxChangeYear,
+    pendingWar: s.pendingWar, treaty: s.treaty,
+    lastWarYear: s.lastWarYear, warHistory: s.warHistory,
     rngState: s.rng.s,
   });
 }
@@ -231,6 +253,8 @@ export function deserialize(json) {
   s.policy = o.policy; s.flags = o.flags; s.history = o.history;
   s.storyHooks = o.storyHooks || []; s.modifiers = o.modifiers || {};
   s.lastTaxChangeYear = o.lastTaxChangeYear ?? null;
+  s.pendingWar = o.pendingWar || null; s.treaty = o.treaty || null;
+  s.lastWarYear = o.lastWarYear ?? null; s.warHistory = o.warHistory || [];
   s.rng.s = o.rngState;
   s.stats = aggregate(s.people);
   return s;

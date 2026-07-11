@@ -36,9 +36,21 @@ test('小程序核心可连续推进 30 年', () => {
   const state = game.newGame({chapter:4, seed:11});
   for (let i = 0; i < 30 && !state.over; i++) {
     if (state.pendingEvent) game.applyEventOption(state, 0);
+    if (state.pendingWar) game.applyWarDecision(state, {action:'fight',conscriptionRate:.2,supplyLevel:2,equipmentLevel:2});
     game.nextYear(state);
     assert(state.people.length <= state.cfg.populationHardCap, '人口突破硬上限');
   }
+});
+
+test('小程序战争核心可结算并生成条约', () => {
+  const game=load('game.js');
+  const state=game.newGame({chapter:4,seed:77});
+  state.year=21;
+  state.pendingWar={enemyName:'测试敌国',enemyStrength:999,eligible:300,offeredTreaty:{duration:4,upfront:500,annualFlat:100,taxShare:.3,minTaxRate:.1}};
+  const before=state.people.length;
+  const result=game.applyWarDecision(state,{action:'fight',conscriptionRate:.2,supplyLevel:1,equipmentLevel:1});
+  assert(result.outcome==='defeat'&&state.people.length<before,'小程序战败没有消耗人口');
+  assert(state.treaty&&game.treatyTaxFloor(state)>=.1,'小程序战败条约未生效');
 });
 
 test('小程序税务官管辖上限为 100', () => {

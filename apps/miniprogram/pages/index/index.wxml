@@ -16,6 +16,22 @@
     </view>
   </view>
 
+  <view wx:if="{{war}}" class="card" style="border-top:4rpx solid #c0392b;">
+    <view class="title">⚔ {{war.enemyName}}入侵</view>
+    <view style="font-size:24rpx;color:#54667a;line-height:1.6;">敌军强度{{war.enemyStrength}}，可征召{{war.eligible}}人</view>
+    <view style="font-size:24rpx;margin-top:12rpx;">征兵规模 {{conscription}}%</view>
+    <slider min="5" max="50" step="5" value="{{conscription}}" data-key="conscription" bindchange="onWarSetting" />
+    <view style="font-size:24rpx;">补给水平 {{supply}} / 3</view>
+    <slider min="1" max="3" step="1" value="{{supply}}" data-key="supply" bindchange="onWarSetting" />
+    <view style="font-size:24rpx;">装备水平 {{equipment}} / 3</view>
+    <slider min="1" max="3" step="1" value="{{equipment}}" data-key="equipment" bindchange="onWarSetting" />
+    <view style="font-size:24rpx;color:#9a6a22;margin-bottom:10rpx;">{{warEstimate}}</view>
+    <view style="font-size:22rpx;color:#8b3a32;margin-bottom:12rpx;">条约：{{treatyText}}</view>
+    <button class="btn-primary" data-action="fight" bindtap="onChooseWar">出兵作战</button>
+    <button class="btn-ghost" data-action="treaty" bindtap="onChooseWar">签订条约</button>
+    <button class="btn-ghost" data-action="surrender" bindtap="onChooseWar">直接投降赔款</button>
+  </view>
+
   <!-- 事件 -->
   <view wx:if="{{event}}" class="card" style="border-top:4rpx solid #c0392b;">
     <view class="title">📜 {{event.title}}</view>
@@ -28,7 +44,7 @@
   </view>
 
   <!-- 操作 -->
-  <view class="card" wx:if="{{!event && !over}}">
+  <view class="card" wx:if="{{!event && !war && !over}}">
     <button class="btn-primary" bindtap="onNextYear">⏯ 下一年</button>
     <button class="btn-ghost" bindtap="onSave" style="margin-top:10rpx;">💾 存档</button>
   </view>
