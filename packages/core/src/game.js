@@ -12,7 +12,7 @@ import {
 import {
   assignRoles, collectTax, payWages, educate, military, securityCount,
 } from './government.js';
-import { rollEvent } from './events.js';
+import { EVENTS, rollEvent } from './events.js';
 import {
   maybeStartWar, applyWarDecision as resolveWar, estimateWarCost,
   treatyTaxFloor, enforceTreatyTaxFloor, settleTreatyTax,
@@ -237,6 +237,7 @@ export function serialize(s) {
     flags: s.flags, history: s.history,
     storyHooks: s.storyHooks, modifiers: s.modifiers,
     lastTaxChangeYear: s.lastTaxChangeYear,
+    pendingEventId: s.pendingEvent?.id || null,
     pendingWar: s.pendingWar, treaty: s.treaty,
     lastWarYear: s.lastWarYear, warHistory: s.warHistory,
     rngState: s.rng.s,
@@ -253,6 +254,7 @@ export function deserialize(json) {
   s.policy = o.policy; s.flags = o.flags; s.history = o.history;
   s.storyHooks = o.storyHooks || []; s.modifiers = o.modifiers || {};
   s.lastTaxChangeYear = o.lastTaxChangeYear ?? null;
+  s.pendingEvent = o.pendingEventId ? (EVENTS.find(e => e.id === o.pendingEventId) || null) : null;
   s.pendingWar = o.pendingWar || null; s.treaty = o.treaty || null;
   s.lastWarYear = o.lastWarYear ?? null; s.warHistory = o.warHistory || [];
   s.rng.s = o.rngState;

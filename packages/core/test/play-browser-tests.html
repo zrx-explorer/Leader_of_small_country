@@ -1,0 +1,91 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>play tests running</title>
+<pre id="result">running</pre>
+<iframe id="game" src="../../../play.html" hidden></iframe>
+<script>
+const lines = [];
+function assert(value, message) { if (!value) throw new Error(message); }
+function hidden(el) { return el.classList.contains('hidden'); }
+
+game.onload = () => setTimeout(() => {
+  try {
+    const win = game.contentWindow;
+    const doc = game.contentDocument;
+    win.alert = () => {};
+    const year = () => Number(doc.getElementById('year').textContent);
+
+    assert(year() === 1, '单文件版没有完成初始化');
+    doc.getElementById('next').click();
+    assert(year() === 2, '点击下一年后年份没有推进');
+    lines.push('PASS 下一年按钮可推进');
+
+    win.eval("state.pendingEvent=EVENTS.find(e=>e[0]==='harvest');render()");
+    const eventModal = doc.getElementById('eventModal');
+    assert(!hidden(eventModal), '风调雨顺事件没有显示');
+    assert(doc.getElementById('et').textContent === '风调雨顺', '事件标题不正确');
+    eventModal.querySelector('button').click();
+    assert(hidden(eventModal), '选择后风调雨顺弹窗没有关闭');
+    assert(win.eval('state.pendingEvent===null'), '选择后事件状态没有清空');
+    const afterEvent = year();
+    doc.getElementById('next').click();
+    assert(year() === afterEvent + 1, '处理事件后仍无法推进年份');
+    lines.push('PASS 风调雨顺只结算一次并正常关闭');
+
+    win.eval("state.pendingEvent=null;state.year=21;state.treasury=20000;state.pendingWar={enemyName:'回归敌国',enemyStrength:30,eligible:eligible().length,offeredTreaty:{duration:4,upfront:500,annualFlat:100,taxShare:.3,minTaxRate:.12}};render()");
+    const beforeWarPop = win.eval('state.people.length');
+    const beforeWarTreasury = win.eval('state.treasury');
+    doc.getElementById('warFight').click();
+    assert(hidden(doc.getElementById('warModal')), '出兵后战争弹窗没有关闭');
+    assert(win.eval('state.pendingWar===null'), '出兵后战争状态没有清空');
+    assert(win.eval('state.people.length') < beforeWarPop, '战争没有造成人口损失');
+    assert(win.eval('state.treasury') < beforeWarTreasury, '战争没有消耗国库');
+    lines.push('PASS 战争可结算并消耗人口、国库');
+
+    win.eval("state.pendingWar={enemyName:'条约敌国',enemyStrength:100,eligible:eligible().length,offeredTreaty:{duration:4,upfront:500,annualFlat:100,taxShare:.3,minTaxRate:.12}};render()");
+    doc.getElementById('warSign').click();
+    assert(win.eval('state.treaty&&state.treaty.minTaxRate===.12'), '签约后条约没有生效');
+    assert(win.eval("Object.values(state.policy.tax).every(v=>v>=.12)"), '条约最低税率没有生效');
+    lines.push('PASS 条约与最低税率生效');
+
+    win.eval("state.pendingWar=null;state.year=23;state.pendingEvent=EVENTS.find(e=>e[0]==='harvest');render()");
+    doc.getElementById('save').click();
+    win.eval('state.year=99;state.pendingEvent=null;render()');
+    doc.getElementById('load').click();
+    assert(year() === 23, '存档读取后年份不正确');
+    assert(win.eval('Boolean(state.treaty)'), '存档读取后条约丢失');
+    assert(win.eval("state.pendingEvent&&state.pendingEvent[0]==='harvest'"), '存档读取后待处理事件丢失');
+    assert(!hidden(eventModal), '读档后待处理事件没有重新显示');
+    eventModal.querySelector('button').click();
+    lines.push('PASS 存档可保留条约和待处理事件');
+
+    win.eval("state.treasury=50000;state.bad=0;state.crime=0;state.low=0;state.people.forEach(p=>{if(!p.isCriminal)p.satisfaction=Math.max(5,p.satisfaction)});render()");
+    let events = 0, wars = 0;
+    for (let turn = 0; turn < 60; turn++) {
+      if (!hidden(eventModal)) {
+        const option = eventModal.querySelector('button');
+        assert(option, '事件弹窗没有可选项');
+        option.click(); events++;
+        assert(hidden(eventModal), '连续游玩中事件弹窗未关闭');
+      }
+      if (!hidden(doc.getElementById('warModal'))) {
+        doc.getElementById('warFight').click(); wars++;
+        assert(hidden(doc.getElementById('warModal')), '连续游玩中战争弹窗未关闭');
+      }
+      if (!hidden(doc.getElementById('end'))) {
+        doc.getElementById('reset').click();
+      }
+      const before = year();
+      doc.getElementById('next').click();
+      assert(year() === before + 1, `连续游玩第 ${turn + 1} 回合未推进`);
+    }
+    lines.push(`PASS 连续游玩60回合无阻塞（事件${events}次，战争${wars}次）`);
+  } catch (error) {
+    lines.push(`FAIL ${error.message}`);
+  }
+  const failed = lines.filter(x => x.startsWith('FAIL')).length;
+  result.textContent = lines.join('\n');
+  document.title = failed ? `play tests failed (${failed})` : 'play tests passed';
+  document.body.dataset.failed = String(failed);
+}, 100);
+</script>

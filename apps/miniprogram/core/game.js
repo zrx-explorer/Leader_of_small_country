@@ -4,7 +4,7 @@ const { seedPopulation, aggregate, recordPersonHistory } = require('./person.js'
 const { farmersProduce, workersProduce, trade, consume } = require('./economy.js');
 const { updateSatisfaction, judgeStatus, enforceSecurity, plunder, birth, ageAndDie, classMobility } = require('./society.js');
 const { assignRoles, collectTax, payWages, educate, military, securityCount } = require('./government.js');
-const { rollEvent } = require('./events.js');
+const { EVENTS, rollEvent } = require('./events.js');
 const { maybeStartWar, applyWarDecision:resolveWar, estimateWarCost, treatyTaxFloor, enforceTreatyTaxFloor, settleTreatyTax } = require('./war.js');
 
 function defaultPolicy() {
@@ -176,6 +176,7 @@ function serialize(s) {
     flags: s.flags, history: s.history,
     storyHooks: s.storyHooks, modifiers: s.modifiers,
     lastTaxChangeYear: s.lastTaxChangeYear,
+    pendingEventId:s.pendingEvent&&s.pendingEvent.id||null,
     pendingWar:s.pendingWar, treaty:s.treaty,
     lastWarYear:s.lastWarYear, warHistory:s.warHistory,
     rngState: s.rng.s,
@@ -190,6 +191,7 @@ function deserialize(json) {
   s.policy = o.policy; s.flags = o.flags; s.history = o.history;
   s.storyHooks = o.storyHooks || []; s.modifiers = o.modifiers || {};
   s.lastTaxChangeYear = o.lastTaxChangeYear == null ? null : o.lastTaxChangeYear;
+  s.pendingEvent=o.pendingEventId?(EVENTS.find(e=>e.id===o.pendingEventId)||null):null;
   s.pendingWar=o.pendingWar||null; s.treaty=o.treaty||null;
   s.lastWarYear=o.lastWarYear==null?null:o.lastWarYear; s.warHistory=o.warHistory||[];
   s.rng.s = o.rngState;

@@ -9,7 +9,7 @@ import { createPerson, aggregate } from '../src/person.js';
 import { assignRoles, collectTax } from '../src/government.js';
 import { birth, ageAndDie, judgeStatus, enforceSecurity, plunder } from '../src/society.js';
 import { EVENTS } from '../src/events.js';
-import { newGame, nextYear, applyEventOption, applyWarDecision, estimateWarCost, treatyTaxFloor } from '../src/game.js';
+import { newGame, nextYear, applyEventOption, applyWarDecision, estimateWarCost, treatyTaxFloor, serialize, deserialize } from '../src/game.js';
 import { maybeStartWar, settleTreatyTax } from '../src/war.js';
 
 const results = [];
@@ -18,6 +18,13 @@ function test(name, fn) {
   catch (error) { results.push(`FAIL ${name}: ${error.message}`); }
 }
 function assert(value, message) { if (!value) throw new Error(message); }
+
+test('存档会保留待处理事件', () => {
+  const state = newGame({chapter:1, seed:5});
+  state.pendingEvent = EVENTS.find(e => e.id === 'good_harvest');
+  const restored = deserialize(serialize(state));
+  assert(restored.pendingEvent?.id === 'good_harvest', '读档后待处理事件丢失');
+});
 function basePerson(id, overrides = {}) {
   return { id, name:`民${id}`, klass:CLASS.FARMER, age:25, gender:'male', intelligence:50,
     satisfaction:0, grain:100, product:0, isCriminal:false, isInflated:false, role:null, history:[], ...overrides };
