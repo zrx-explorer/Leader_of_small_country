@@ -22,8 +22,57 @@ function assert(value, message) { if (!value) throw new Error(message); }
 test('存档会保留待处理事件', () => {
   const state = newGame({chapter:1, seed:5});
   state.pendingEvent = EVENTS.find(e => e.id === 'good_harvest');
+  state.morality = 7;
+  state.rationality = -4;
   const restored = deserialize(serialize(state));
   assert(restored.pendingEvent?.id === 'good_harvest', '读档后待处理事件丢失');
+  assert(restored.morality === 7 && restored.rationality === -4, '读档后隐藏属性丢失');
+});
+
+test('旧存档缺少隐藏属性时会补零', () => {
+  const archived = JSON.parse(serialize(newGame({chapter:1, seed:6})));
+  delete archived.morality;
+  delete archived.rationality;
+  const restored = deserialize(JSON.stringify(archived));
+  assert(restored.morality === 0 && restored.rationality === 0, '旧存档隐藏属性没有补零');
+});
+
+test('每个事件选项都会影响善恶值与理性值', () => {
+  assert(EVENTS.length >= 16, `事件数量只有 ${EVENTS.length}`);
+  for (const event of EVENTS) {
+    for (const option of event.options) {
+      const effects = option.hiddenEffects;
+      assert(effects && Number.isFinite(effects.morality) && effects.morality !== 0,
+        `${event.id} / ${option.label} 缺少善恶值变化`);
+      assert(effects && Number.isFinite(effects.rationality) && effects.rationality !== 0,
+        `${event.id} / ${option.label} 缺少理性值变化`);
+    }
+  }
+});
+
+test('上访与罪犯事件会结算玩法结果和隐藏属性', () => {
+  const petitionState = newGame({chapter:1, seed:7});
+  petitionState.pendingEvent = EVENTS.find(e => e.id === 'farmer_petition');
+  const farmer = petitionState.people.find(p => p.klass === 'farmer');
+  const farmerGrain = farmer.grain;
+  applyEventOption(petitionState, 0);
+  assert(farmer.grain === farmerGrain + 5, '彻查豪强后没有退还田粮');
+  assert(petitionState.morality === 3 && petitionState.rationality === 2, '上访选项隐藏属性未结算');
+
+  const criminalState = newGame({chapter:1, seed:8});
+  criminalState.people[0].isCriminal = true;
+  criminalState.pendingEvent = EVENTS.find(e => e.id === 'criminal_sentencing');
+  applyEventOption(criminalState, 0);
+  assert(!criminalState.people[0].isCriminal, '感化后罪犯没有从良');
+  assert(criminalState.morality === 3 && criminalState.rationality === 1, '感化选项隐藏属性未结算');
+
+  const executionState = newGame({chapter:1, seed:9});
+  executionState.people[0].isCriminal = true;
+  const beforePopulation = executionState.people.length;
+  executionState.pendingEvent = EVENTS.find(e => e.id === 'criminal_sentencing');
+  applyEventOption(executionState, 1);
+  assert(executionState.people.length === beforePopulation - 1, '处决后没有移除罪犯');
+  assert(executionState.morality === -3 && executionState.rationality === -1, '处决选项隐藏属性未结算');
 });
 function basePerson(id, overrides = {}) {
   return { id, name:`民${id}`, klass:CLASS.FARMER, age:25, gender:'male', intelligence:50,

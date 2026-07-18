@@ -26,7 +26,10 @@ function newGame(opt) {
     year: 1, chapter: ch.id, chapterName: ch.name, seed, rng,
     cfg: Object.assign({}, DEFAULT_CONFIG),
     policy: defaultPolicy(),
-    treasury: 1000, people,
+    treasury: 1000,
+    morality: 0,
+    rationality: 0,
+    people,
     log: [`【${ch.name}】游戏开始，初始人口 ${people.length}`],
     history: [], flags: {}, pendingEvent: null, pendingWar:null, treaty:null, lastWarYear:null, warHistory:[], over: null,
     consecutiveBadYears: 0,
@@ -47,6 +50,14 @@ function applyEventOption(state, idx) {
   const opt = ev.options[idx] || ev.options[0];
   state.log.push(`📜 事件【${ev.title}】→ ${opt.label}`);
   opt.apply(state);
+  const hiddenEffects = opt.hiddenEffects || {};
+  const moralityDelta = Number(hiddenEffects.morality);
+  const rationalityDelta = Number(hiddenEffects.rationality);
+  state.morality = (Number.isFinite(state.morality) ? state.morality : 0)
+    + (Number.isFinite(moralityDelta) ? moralityDelta : 0);
+  state.rationality = (Number.isFinite(state.rationality) ? state.rationality : 0)
+    + (Number.isFinite(rationalityDelta) ? rationalityDelta : 0);
+  state.stats = aggregate(state.people);
   if (opt.storyHook) state.storyHooks.push(opt.storyHook);
   state.pendingEvent = null;
 }
@@ -172,7 +183,8 @@ function judgeOutcome(s) {
 function serialize(s) {
   return JSON.stringify({
     year: s.year, chapter: s.chapter, seed: s.seed,
-    treasury: s.treasury, people: s.people, policy: s.policy,
+    treasury: s.treasury, morality: s.morality, rationality: s.rationality,
+    people: s.people, policy: s.policy,
     flags: s.flags, history: s.history,
     storyHooks: s.storyHooks, modifiers: s.modifiers,
     lastTaxChangeYear: s.lastTaxChangeYear,
@@ -186,7 +198,10 @@ function serialize(s) {
 function deserialize(json) {
   const o = JSON.parse(json);
   const s = newGame({ chapter: o.chapter, seed: o.seed });
-  s.year = o.year; s.treasury = o.treasury; s.people = o.people;
+  s.year = o.year; s.treasury = o.treasury;
+  s.morality = Number.isFinite(o.morality) ? o.morality : 0;
+  s.rationality = Number.isFinite(o.rationality) ? o.rationality : 0;
+  s.people = o.people;
   s.people.forEach(p => { if (!p.gender) p.gender = p.id % 2 ? 'male' : 'female'; });
   s.policy = o.policy; s.flags = o.flags; s.history = o.history;
   s.storyHooks = o.storyHooks || []; s.modifiers = o.modifiers || {};

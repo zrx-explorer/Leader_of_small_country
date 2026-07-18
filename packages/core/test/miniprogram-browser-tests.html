@@ -36,8 +36,26 @@ test('小程序存档会保留待处理事件', () => {
   const events = load('events.js').EVENTS;
   const state = game.newGame({chapter:1, seed:9});
   state.pendingEvent = events.find(e => e.id === 'good_harvest');
+  state.morality = 5;
+  state.rationality = -2;
   const restored = game.deserialize(game.serialize(state));
   assert(restored.pendingEvent && restored.pendingEvent.id === 'good_harvest', '小程序读档后待处理事件丢失');
+  assert(restored.morality === 5 && restored.rationality === -2, '小程序读档后隐藏属性丢失');
+});
+
+test('小程序事件完整记录隐藏属性', () => {
+  const game = load('game.js');
+  const events = load('events.js').EVENTS;
+  assert(events.length >= 16, `小程序事件数量只有 ${events.length}`);
+  assert(events.every(e => e.options.every(o => o.hiddenEffects
+    && Number.isFinite(o.hiddenEffects.morality) && o.hiddenEffects.morality !== 0
+    && Number.isFinite(o.hiddenEffects.rationality) && o.hiddenEffects.rationality !== 0)), '存在未配置隐藏属性的事件选项');
+  const state = game.newGame({chapter:1, seed:10});
+  state.people[0].isCriminal = true;
+  state.pendingEvent = events.find(e => e.id === 'criminal_sentencing');
+  game.applyEventOption(state, 0);
+  assert(!state.people[0].isCriminal, '小程序感化选项没有让罪犯从良');
+  assert(state.morality === 3 && state.rationality === 1, '小程序隐藏属性没有结算');
 });
 
 test('小程序核心可连续推进 30 年', () => {

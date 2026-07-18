@@ -9,7 +9,9 @@ function assert(value, message) { if (!value) throw new Error(message); }
 game.onload = () => setTimeout(() => {
   try {
     const ctrl = game.contentWindow.__game;
+    const doc = game.contentDocument;
     const state = ctrl.state;
+    assert(!doc.body.innerText.includes('善恶值') && !doc.body.innerText.includes('理性值'), '隐藏属性被显示在 Web 界面');
     while (state.people.length < 101) state.people.push({...state.people[0], id:1000 + state.people.length});
     state.stats.total = state.people.length;
     state.year = 11;
@@ -42,6 +44,7 @@ game.onload = () => setTimeout(() => {
     ctrl.setOfficial('military', 3);
     assert(state.policy.officials.military === 3, '解锁后无法调整军事官员');
     lines.push('PASS Web岗位解锁限制');
+    lines.push('PASS 隐藏属性未显示在 Web 界面');
   } catch (error) {
     lines.push(`FAIL ${error.message}`);
   }
