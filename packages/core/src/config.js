@@ -34,9 +34,9 @@ export const DEFAULT_CONFIG = Object.freeze({
   highCrimeChance: 0.03,
   crimeStartYear: 6,
   // 生产
-  farmerProdMean: 180,      // 农民人均年产粮（180/10人=18/人）
+  farmerProdMean: 180,      // 原有产量基线；实际单人年产不低于 13 人的年口粮
   farmerProdJitter: 18,
-  workerProdMean: 30,
+  workerProdMean: 30,       // 原有产量基线；实际单人年产不低于 13 人的年产品需求
   workerProdJitter: 1.5,
   productionCost: 1.5,
   // 税率（玩家可调）

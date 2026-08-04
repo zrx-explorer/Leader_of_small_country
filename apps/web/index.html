@@ -31,6 +31,19 @@
       <h2>政策调控</h2>
       <p id="policy-window-tip" class="policy-window-tip">政策窗口开放：本年可调整税率、公务员与军费</p>
 
+      <section class="policy-presets" aria-label="快捷政策方案">
+        <div class="preset-title">快捷方案</div>
+        <div class="preset-buttons">
+          <button class="btn policy-preset" data-preset="wellbeing" title="低税、低军费，优先民生与教育">休养生息 · 低税民生</button>
+          <button class="btn policy-preset" data-preset="balanced" title="中等税率，兼顾治安、民生与教育">均衡治理 · 稳健发展</button>
+          <button class="btn policy-preset" data-preset="defense" title="较高税率和军费，优先军事与治安">富国强兵 · 高税军务</button>
+        </div>
+        <div id="official-capacity" class="official-capacity"></div>
+      </section>
+
+      <details class="advanced-policy">
+        <summary>高级调控：逐项细调</summary>
+
       <fieldset>
         <legend>税率</legend>
         <div id="tax-adjust-tip" class="role-help-text"></div>
@@ -47,6 +60,10 @@
 
       <fieldset>
         <legend>公务员配额</legend>
+        <label>人均年工资 <output id="out-official-wage">10 / 人</output>
+          <span class="role-help-text">实际支出 = 在职公务员人数 × 工资；原策划案参考值 60</span>
+          <input type="range" id="official-wage" min="0" max="100" step="1" value="10" />
+        </label>
         <label>税务 <button class="help-btn role-help-btn" type="button" data-help="help-tax">?</button><output id="out-off-tax">1</output>
           <span id="help-tax" class="role-help-text hidden">每人管辖 100 名纳税人｜开局解锁</span>
           <input type="range" id="off-tax" min="0" max="20" step="1" value="1" />
@@ -75,6 +92,7 @@
           <input type="range" id="mil-ratio" min="0" max="50" step="1" value="5" />
         </label>
       </fieldset>
+      </details>
     </aside>
 
     <!-- 中：可视化 -->
@@ -97,8 +115,10 @@
 
       <div class="footer-bar">
         <button id="btn-next" class="btn btn-primary">⏯ 下一年</button>
+        <button id="btn-fast" class="btn">⏩ 推进至决策</button>
         <span id="chapter-tip" class="chapter-tip"></span>
       </div>
+      <div id="year-summary" class="year-summary">推进一年后显示年度变化</div>
 
       <section class="people-board">
         <div class="people-head">

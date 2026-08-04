@@ -1,5 +1,6 @@
 let _uid = 0;
 const nextId = () => ++_uid;
+function syncNextId(people) { _uid=Math.max(_uid,...people.map(p=>Number(p.id)||0)); }
 const SURNAMES = '赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹'.split('');
 const GIVEN = '安邦承德明远知礼怀仁景行守正敬文思齐修远仲平子谦伯宁元直文昌德厚清和嘉言有恒'.match(/.{1,2}/g);
 
@@ -77,4 +78,4 @@ function recordPersonHistory(people, year) {
   }
 }
 
-module.exports = { createPerson, seedPopulation, aggregate, recordPersonHistory, nextId };
+module.exports = { createPerson, seedPopulation, aggregate, recordPersonHistory, nextId, syncNextId };

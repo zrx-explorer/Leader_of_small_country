@@ -17,6 +17,11 @@ game.onload = () => setTimeout(() => {
 
     assert(year() === 1, '单文件版没有完成初始化');
     assert(!doc.body.innerText.includes('善恶值') && !doc.body.innerText.includes('理性值'), '隐藏属性被显示在单文件界面');
+    assert(!doc.querySelector('details').open, '单文件版高级调控没有默认收起');
+    doc.querySelector('[data-preset="balanced"]').click();
+    assert(win.eval('state.policy.tax.farmer===.06&&state.policy.militaryRatio===.05&&state.policy.officialWage===10'), '单文件版快捷政策没有生效');
+    assert(doc.getElementById('wg'), '单文件版缺少公务员工资调节项');
+    assert(win.eval('Object.values(state.policy.officials).reduce((a,b)=>a+b,0)<=state.stats.byClass.official'), '单文件版快捷政策超配公务员');
     doc.getElementById('next').click();
     assert(year() === 2, '点击下一年后年份没有推进');
     lines.push('PASS 下一年按钮可推进');
@@ -26,11 +31,13 @@ game.onload = () => setTimeout(() => {
     const eventModal = doc.getElementById('eventModal');
     assert(!hidden(eventModal), '风调雨顺事件没有显示');
     assert(doc.getElementById('et').textContent === '风调雨顺', '事件标题不正确');
+    const logBlocksBeforeChoice = doc.getElementById('log').children.length;
     eventModal.querySelector('button').click();
     assert(hidden(eventModal), '选择后风调雨顺弹窗没有关闭');
     assert(win.eval('state.pendingEvent===null'), '选择后事件状态没有清空');
     assert(win.eval('state.morality') === hiddenBefore.morality - 2, '单文件版没有记录善恶值');
     assert(win.eval('state.rationality') === hiddenBefore.rationality + 1, '单文件版没有记录理性值');
+    assert(doc.getElementById('log').children.length === logBlocksBeforeChoice, '事件选择重复追加同一年度日志');
     const afterEvent = year();
     doc.getElementById('next').click();
     assert(year() === afterEvent + 1, '处理事件后仍无法推进年份');
@@ -60,6 +67,7 @@ game.onload = () => setTimeout(() => {
     assert(win.eval('Boolean(state.treaty)'), '存档读取后条约丢失');
     assert(win.eval("state.pendingEvent&&state.pendingEvent[0]==='harvest'"), '存档读取后待处理事件丢失');
     assert(Number.isFinite(win.eval('state.morality')) && Number.isFinite(win.eval('state.rationality')), '存档读取后隐藏属性丢失');
+    assert(Number.isFinite(win.eval('state.policy.officialWage')), '存档读取后公务员工资丢失');
     assert(!hidden(eventModal), '读档后待处理事件没有重新显示');
     eventModal.querySelector('button').click();
     lines.push('PASS 存档可保留条约和待处理事件');
@@ -85,6 +93,13 @@ game.onload = () => setTimeout(() => {
       assert(year() === before + 1, `连续游玩第 ${turn + 1} 回合未推进`);
     }
     lines.push(`PASS 连续游玩60回合无阻塞（事件${events}次，战争${wars}次）`);
+
+    doc.getElementById('reset').click();
+    win.eval('state.year=2;state.rng.c=()=>false;render()');
+    doc.getElementById('fast').click();
+    assert(year() === 4, `单文件版推进至决策停在第${year()}年`);
+    assert(doc.getElementById('yearDelta').textContent.includes('变化'), '单文件版没有年度变化摘要');
+    lines.push('PASS 单文件版快捷政策、年度摘要与推进至决策');
   } catch (error) {
     lines.push(`FAIL ${error.message}`);
   }

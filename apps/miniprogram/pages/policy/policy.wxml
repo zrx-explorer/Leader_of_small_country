@@ -1,5 +1,17 @@
 <view class="container">
   <view class="card">
+    <view class="title">快捷政策方案</view>
+    <view class="preset-desc">一次设置税率、军费和可用公务员；仍可展开高级调控逐项修改。</view>
+    <view class="preset-desc">{{policyTip}}</view>
+    <button class="btn-ghost" data-preset="wellbeing" bindtap="onPreset" disabled="{{policyLocked}}">休养生息 · 低税重民生</button>
+    <button class="btn-ghost" data-preset="balanced" bindtap="onPreset" disabled="{{policyLocked}}">均衡治理 · 各方兼顾</button>
+    <button class="btn-ghost" data-preset="defense" bindtap="onPreset" disabled="{{policyLocked}}">富国强兵 · 高税重军务</button>
+    <view class="official-capacity">{{officialCapacity}}</view>
+    <button class="advanced-toggle" bindtap="toggleAdvanced">{{advancedOpen ? '收起高级调控' : '展开高级调控'}}</button>
+  </view>
+
+  <block wx:if="{{advancedOpen}}">
+  <view class="card">
     <view class="title">税率</view>
     <view style="font-size:24rpx;color:#9a6a22;margin-bottom:12rpx;">{{policyTip}}</view>
     <view style="font-size:22rpx;color:#54667a;margin-bottom:12rpx;">{{taxTip}}</view>
@@ -13,6 +25,9 @@
 
   <view class="card">
     <view class="title">公务员配额</view>
+    <view style="font-size:24rpx;color:#54667a;">人均年工资 {{officialWage}}</view>
+    <view class="official-help">实际支出 = 在职公务员人数 × 工资；原策划案参考值 60</view>
+    <slider min="0" max="100" step="1" value="{{officialWage}}" disabled="{{policyLocked}}" data-key="officialWage" bindchange="onSlider" activeColor="#c0392b" />
     <view style="font-size:24rpx;color:#54667a;">税务 <text class="help" data-role="tax" bindtap="toggleOfficialHelp">?</text> {{offTax}}</view>
     <view wx:if="{{helpRole == 'tax'}}" class="official-help">每人管辖100名纳税人｜开局解锁</view>
     <slider min="0" max="20" step="1" value="{{offTax}}" disabled="{{policyLocked}}" data-key="offTax" bindchange="onSlider" />
@@ -35,4 +50,5 @@
     <view style="font-size:24rpx;color:#54667a;">国库占比 {{milRatio}}%</view>
     <slider min="0" max="50" step="1" value="{{milRatio}}" disabled="{{policyLocked}}" data-key="milRatio" bindchange="onSlider" activeColor="#c0392b" />
   </view>
+  </block>
 </view>

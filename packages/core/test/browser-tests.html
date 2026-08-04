@@ -6,10 +6,11 @@
 import { RNG } from '../src/math.js';
 import { DEFAULT_CONFIG, CLASS } from '../src/config.js';
 import { createPerson, aggregate } from '../src/person.js';
-import { assignRoles, collectTax } from '../src/government.js';
+import { assignRoles, collectTax, payWages } from '../src/government.js';
+import { farmersProduce, workersProduce, trade } from '../src/economy.js';
 import { birth, ageAndDie, judgeStatus, enforceSecurity, plunder } from '../src/society.js';
-import { EVENTS } from '../src/events.js';
-import { newGame, nextYear, applyEventOption, applyWarDecision, estimateWarCost, treatyTaxFloor, serialize, deserialize } from '../src/game.js';
+import { EVENTS, rollEvent } from '../src/events.js';
+import { newGame, nextYear, applyEventOption, applyWarDecision, applyPolicyPreset, estimateWarCost, treatyTaxFloor, serialize, deserialize } from '../src/game.js';
 import { maybeStartWar, settleTreatyTax } from '../src/war.js';
 
 const results = [];
@@ -37,17 +38,104 @@ test('旧存档缺少隐藏属性时会补零', () => {
   assert(restored.morality === 0 && restored.rationality === 0, '旧存档隐藏属性没有补零');
 });
 
+test('旧存档缺少公务员工资时会补默认值', () => {
+  const archived = JSON.parse(serialize(newGame({chapter:1, seed:60})));
+  delete archived.policy.officialWage;
+  const restored = deserialize(JSON.stringify(archived));
+  assert(restored.policy.officialWage === DEFAULT_CONFIG.govWage, '旧存档没有补公务员工资');
+});
+
+test('快捷政策方案会守住公务员容量与条约税率下限', () => {
+  const state = newGame({chapter:1, seed:61});
+  const available = state.stats.byClass.official;
+  const result = applyPolicyPreset(state, 'wellbeing');
+  assert(result.label === '休养生息', '没有应用指定政策方案');
+  assert(Object.values(state.policy.officials).reduce((a,b)=>a+b,0) <= available, '快捷方案超配公务员');
+  assert(state.policy.officials.security > 0, '快捷方案没有为第5年治安解锁预留人员');
+  assert(state.policy.tax.farmer === .03 && state.policy.militaryRatio === .02, '休养生息数值不正确');
+  state.treaty = {minTaxRate:.12};
+  applyPolicyPreset(state, 'wellbeing');
+  assert(Object.values(state.policy.tax).every(v => v >= .12), '快捷方案突破条约税率下限');
+  const taxes = {...state.policy.tax};
+  applyPolicyPreset(state, 'defense', {includeTax:false});
+  assert(JSON.stringify(state.policy.tax) === JSON.stringify(taxes), '税率冷却时快捷方案仍修改税率');
+});
+
+test('事件抽取会避开最近两次事件', () => {
+  const state = newGame({chapter:1, seed:62});
+  state.year = 8;
+  state.stats.avgIntelligence = 60;
+  state.rng.chance = () => true;
+  state.rng.uniform = () => 0;
+  const ids = [rollEvent(state).id, rollEvent(state).id, rollEvent(state).id];
+  assert(new Set(ids).size === 3, `连续抽到重复事件：${ids.join(',')}`);
+  assert(state.recentEventIds.join(',') === ids.slice(-2).join(','), '最近事件记录不正确');
+});
+
+test('年度变化摘要和日志会随存档保留', () => {
+  const state = newGame({chapter:1, seed:63});
+  nextYear(state);
+  assert(state.lastYearChanges?.year === 1, '没有生成年变化摘要');
+  const restored = deserialize(serialize(state));
+  assert(restored.lastYearChanges?.year === 1, '读档后年变化摘要丢失');
+  assert(restored.log[0] === state.log[0], '读档后当前年度日志丢失');
+  assert(restored.recentEventIds.join(',') === state.recentEventIds.join(','), '读档后最近事件记录丢失');
+});
+
 test('每个事件选项都会影响善恶值与理性值', () => {
   assert(EVENTS.length >= 16, `事件数量只有 ${EVENTS.length}`);
   for (const event of EVENTS) {
     for (const option of event.options) {
       const effects = option.hiddenEffects;
+      assert(option.tradeoffs?.benefit && option.tradeoffs?.cost,
+        `${event.id} / ${option.label} 没有同时声明收益与代价`);
       assert(effects && Number.isFinite(effects.morality) && effects.morality !== 0,
         `${event.id} / ${option.label} 缺少善恶值变化`);
       assert(effects && Number.isFinite(effects.rationality) && effects.rationality !== 0,
         `${event.id} / ${option.label} 缺少理性值变化`);
     }
   }
+});
+
+test('生产下限是单人需求的13倍且不压低更高产量', () => {
+  const rng = { uniform:()=>0 };
+  const farmer = basePerson(501, {klass:CLASS.FARMER, grain:0, intelligence:50});
+  farmersProduce([farmer], {...DEFAULT_CONFIG, farmerProdMean:10, farmerProdJitter:0}, rng);
+  assert(farmer.grain === DEFAULT_CONFIG.grainNeed * 13, `农民产粮 ${farmer.grain}`);
+  const productiveFarmer = basePerson(502, {klass:CLASS.FARMER, grain:0, intelligence:50});
+  farmersProduce([productiveFarmer], {...DEFAULT_CONFIG, farmerProdMean:2000, farmerProdJitter:0}, rng);
+  assert(productiveFarmer.grain === 200, '高于下限的农民产量被改写');
+
+  const worker = basePerson(503, {klass:CLASS.WORKER, grain:100, product:0, intelligence:50});
+  workersProduce([worker], {...DEFAULT_CONFIG, workerProdMean:5, workerProdJitter:0}, rng);
+  assert(worker.product === DEFAULT_CONFIG.productNeedBase * 13, `工人产品 ${worker.product}`);
+  const productiveWorker = basePerson(504, {klass:CLASS.WORKER, grain:100, product:0, intelligence:50});
+  workersProduce([productiveWorker], {...DEFAULT_CONFIG, workerProdMean:100, workerProdJitter:0}, rng);
+  assert(productiveWorker.product === 20, '高于下限的工人产量被改写');
+});
+
+test('商人按策划顺序进货并优先赚取价差', () => {
+  const worker = basePerson(511, {klass:CLASS.WORKER, grain:0, product:30});
+  const merchant = basePerson(512, {klass:CLASS.MERCHANT, grain:60, product:0});
+  const farmer = basePerson(513, {klass:CLASS.FARMER, grain:100, product:0, satisfaction:12});
+  const official = basePerson(514, {klass:CLASS.OFFICIAL, grain:100, product:0, satisfaction:12});
+  trade([worker, merchant, farmer, official], DEFAULT_CONFIG, {int:()=>0}, []);
+  assert(worker.product < 30 && worker.grain > 0, '商人没有从工人处进货');
+  assert(farmer.product > 0 && official.product > 0, '商品没有流向农民和官员');
+  assert(merchant.grain > 60, `商人没有赚到价差，粮食 ${merchant.grain}`);
+});
+
+test('公务员工资按在职人数乘以政策工资结算', () => {
+  const officials = [
+    basePerson(521, {klass:CLASS.OFFICIAL, grain:0}),
+    basePerson(522, {klass:CLASS.OFFICIAL, grain:0}),
+    basePerson(523, {klass:CLASS.OFFICIAL, grain:0, isCriminal:true}),
+  ];
+  const log=[];
+  const cost=payWages(officials,100,DEFAULT_CONFIG,log,12);
+  assert(cost===24,'工资总支出不是2人×12');
+  assert(officials[0].grain===12&&officials[1].grain===12&&officials[2].grain===0,'工资发放对象错误');
+  assert(log[0].includes('2 人 × 每人 12.0'),'工资日志没有显示人数与单价');
 });
 
 test('上访与罪犯事件会结算玩法结果和隐藏属性', () => {
@@ -73,6 +161,39 @@ test('上访与罪犯事件会结算玩法结果和隐藏属性', () => {
   applyEventOption(executionState, 1);
   assert(executionState.people.length === beforePopulation - 1, '处决后没有移除罪犯');
   assert(executionState.morality === -3 && executionState.rationality === -1, '处决选项隐藏属性未结算');
+});
+
+test('贪官、商人和灾民事件会真实改变人口结构', () => {
+  const corrupt = newGame({chapter:1, seed:81});
+  const officialsBefore = corrupt.stats.byClass.official;
+  corrupt.pendingEvent = EVENTS.find(e => e.id === 'corrupt_official');
+  applyEventOption(corrupt, 0);
+  assert(corrupt.stats.byClass.official === officialsBefore - 1, '查办贪官没有减少公务员人口');
+  assert(corrupt.flags.corruptionCaseYear === corrupt.year, '没有记录贪腐后续事件钩子');
+  corrupt.year += 2;
+  assert(EVENTS.find(e => e.id === 'corruption_aftershock').condition(corrupt), '两年后没有开放贪腐余波事件');
+
+  const inflation = newGame({chapter:1, seed:82});
+  const merchantsBefore = inflation.stats.byClass.merchant;
+  inflation.pendingEvent = EVENTS.find(e => e.id === 'inflation');
+  applyEventOption(inflation, 0);
+  assert(inflation.stats.byClass.merchant === merchantsBefore - 1, '惩办商人没有减少商人人口');
+  assert(inflation.flags.merchantPunishedYear === inflation.year, '没有记录商路后续事件钩子');
+  inflation.year += 2;
+  assert(EVENTS.find(e => e.id === 'merchant_backlash').condition(inflation), '两年后没有开放商路萧条事件');
+
+  const refugees = newGame({chapter:1, seed:83});
+  refugees.year = 7;
+  const populationBefore = refugees.people.length;
+  refugees.pendingEvent = EVENTS.find(e => e.id === 'refugees_at_gate');
+  applyEventOption(refugees, 0);
+  const newcomers = refugees.people.filter(p => p.refugeeWave === 7);
+  assert(refugees.people.length > populationBefore && newcomers.length >= 3, '接纳灾民没有增加人口');
+  assert(newcomers.every(p => p.satisfaction === -12 && !p.isCriminal), '灾民没有以低满意、非罪犯状态加入');
+  const maxId = Math.max(...refugees.people.map(p => p.id));
+  assert(createPerson(refugees.rng, CLASS.FARMER).id > maxId, '事件新增人口后出生编号发生冲突');
+  refugees.year += 2;
+  assert(EVENTS.find(e => e.id === 'refugee_integration').condition(refugees), '两年后没有开放新民安置事件');
 });
 function basePerson(id, overrides = {}) {
   return { id, name:`民${id}`, klass:CLASS.FARMER, age:25, gender:'male', intelligence:50,
@@ -128,6 +249,12 @@ test('前五年无罪犯，之后高低满意度均可能犯罪', () => {
   judgeStatus(people, always, DEFAULT_CONFIG, 6, []);
   assert(people.every(p => p.isCriminal), '高低满意度没有都产生罪犯');
   assert(aggregate(people).avgSatisfaction === 0, '罪犯满意度被计入平均值');
+});
+
+test('达到犯罪条件也不会必然成为罪犯', () => {
+  const people = [basePerson(531, {satisfaction:-30}), basePerson(532, {satisfaction:30})];
+  judgeStatus(people, {chance:()=>false}, DEFAULT_CONFIG, 6, []);
+  assert(people.every(p => !p.isCriminal), '概率判定失败时仍被直接判为罪犯');
 });
 
 test('犯罪阈值校准为低于 -10 / 高于 24', () => {

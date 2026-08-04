@@ -3,7 +3,7 @@
  */
 import {
   newGame, nextYear as advance, applyEventOption,
-  applyWarDecision, estimateWarCost, treatyTaxFloor, serialize, deserialize,
+  applyWarDecision, applyPolicyPreset, estimateWarCost, treatyTaxFloor, serialize, deserialize,
 } from '../../../packages/core/src/game.js';
 import { UI } from './ui.js';
 
@@ -16,9 +16,10 @@ class Controller {
     this.ui.render(this.state);
     if (!localStorage.getItem('xiaoguo.tutorial.shown')) {
       this.ui.startTutorial([
-        '欢迎来到《小国执政官》。先点击右下角"⏯ 下一年"，看一遍数据如何变化。',
-        '左侧"政策调控"可以调整税率与公务员配额。试试把农民税率调到 5%。',
-        '执政路上会随机触发事件，事件没有最优解，请谨慎抉择。',
+        '欢迎来到《小国执政官》。先点击中央的“⏯ 下一年”，看看国家如何变化。',
+        '想轻松游玩时，可在左侧直接选择“休养生息、均衡治理或富国强兵”。',
+        '熟悉系统后再展开“高级调控”，逐项调整税率、公务员与军费。',
+        '“⏩ 推进至决策”会自动略过平静年份，遇到事件、战争或政策窗口就停下。',
       ]);
       localStorage.setItem('xiaoguo.tutorial.shown', '1');
     }
@@ -64,6 +65,16 @@ class Controller {
     if (!this.canAdjustPolicy()) return;
     this.state.policy.militaryRatio = v;
   }
+  setOfficialWage(v) {
+    if (!this.canAdjustPolicy()) return;
+    this.state.policy.officialWage = Math.max(0, v);
+  }
+
+  usePolicyPreset(presetId) {
+    if (!this.canAdjustPolicy()) return;
+    applyPolicyPreset(this.state, presetId, { includeTax: this.canAdjustTax() });
+    this.ui.render(this.state);
+  }
 
   nextYear() {
     if (this.state.over) return;
@@ -85,6 +96,16 @@ class Controller {
     this.ui.render(this.state);
   }
 
+  advanceToDecision() {
+    if (this.state.over || this.state.pendingEvent || this.state.pendingWar) return;
+    for (let i = 0; i < 3; i++) {
+      advance(this.state);
+      this.ui.render(this.state);
+      if (this.state.over || this.state.pendingEvent || this.state.pendingWar) break;
+      if ((this.state.year - 1) % 3 === 0) break;
+    }
+  }
+
   estimateWar(plan) { return estimateWarCost(this.state, plan); }
 
   save() {
@@ -101,6 +122,7 @@ class Controller {
     if (!s) { alert('暂无存档'); return; }
     try {
       this.state = deserialize(s);
+      document.getElementById('log-list').innerHTML = '';
       this.ui.render(this.state);
     } catch (e) {
       alert('读档失败：' + e.message);

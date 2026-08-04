@@ -48,19 +48,23 @@ export function collectTax(people, policy, log) {
   return total;
 }
 
-/** 发工资 */
-export function payWages(people, treasury, cfg, log) {
+/** 按政策给每名在职公务员发工资 */
+export function payWages(people, treasury, cfg, log, wagePerOfficial = cfg.govWage) {
   const officials = people.filter(p => p.klass === CLASS.OFFICIAL && !p.isCriminal);
-  let cost = 0;
+  const wage = Math.max(0, Number(wagePerOfficial) || 0);
+  let cost = 0, paid = 0;
   for (const o of officials) {
-    if (treasury - cost >= cfg.govWage) {
-      o.grain += cfg.govWage;
-      cost += cfg.govWage;
+    if (treasury - cost >= wage) {
+      o.grain += wage;
+      cost += wage;
+      paid++;
+      if (wage < cfg.grainNeed) o.satisfaction -= 0.5;
+      else if (wage >= cfg.grainReserveNeed) o.satisfaction += 0.5;
     } else {
-      o.satisfaction -= 1; // 欠薪
+      o.satisfaction -= 2; // 欠薪
     }
   }
-  if (log) log.push(`📜 公务员工资支出 -${cost.toFixed(1)}`);
+  if (log) log.push(`📜 公务员工资 -${cost.toFixed(1)}（${paid} 人 × 每人 ${wage.toFixed(1)}${paid < officials.length ? `，欠薪 ${officials.length - paid} 人` : ''}）`);
   return cost;
 }
 

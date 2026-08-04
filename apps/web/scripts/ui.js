@@ -26,6 +26,7 @@ export class UI {
     this._range('off-welfare',  (v)=>this.ctrl.setOfficial('welfare', v));
     this._range('off-military', (v)=>this.ctrl.setOfficial('military', v));
     this._range('off-teacher',  (v)=>this.ctrl.setOfficial('teacher', v));
+    this._range('official-wage',(v)=>this.ctrl.setOfficialWage(v), v=>`${v} / 人`);
     this._range('mil-ratio',    (v)=>this.ctrl.setMilitaryRatio(v/100), v=>v+'%');
 
     document.querySelectorAll('.role-help-btn').forEach(help => {
@@ -37,9 +38,13 @@ export class UI {
 
     // 按钮
     document.getElementById('btn-next').onclick     = () => this.ctrl.nextYear();
+    document.getElementById('btn-fast').onclick     = () => this.ctrl.advanceToDecision();
     document.getElementById('btn-save').onclick     = () => this.ctrl.save();
     document.getElementById('btn-load').onclick     = () => this.ctrl.load();
     document.getElementById('btn-restart').onclick  = () => this.ctrl.restart();
+    document.querySelectorAll('.policy-preset').forEach(btn => {
+      btn.onclick = () => this.ctrl.usePolicyPreset(btn.dataset.preset);
+    });
     document.getElementById('end-restart').onclick  = () => {
       this.hideEnd();
       this.ctrl.restart();
@@ -89,6 +94,7 @@ export class UI {
     document.getElementById('hud-sat').textContent = state.stats.avgSatisfaction;
     document.getElementById('hud-int').textContent = state.stats.avgIntelligence;
     document.getElementById('hud-crim').textContent = state.stats.criminals;
+    document.getElementById('year-summary').textContent = yearSummaryText(state.lastYearChanges);
 
     // 章节进度
     document.getElementById('chapter-tip').textContent =
@@ -212,12 +218,14 @@ export class UI {
       'off-welfare': state.policy.officials.welfare,
       'off-military': state.policy.officials.military,
       'off-teacher': state.policy.officials.teacher,
+      'official-wage': state.policy.officialWage,
       'mil-ratio': Math.round(state.policy.militaryRatio * 100),
     };
     const formatters = {
       'tax-farmer': v => `${v}%`,
       'tax-worker': v => `${v}%`,
       'tax-merchant': v => `${v}%`,
+      'official-wage': v => `${v} / 人`,
       'mil-ratio': v => `${v}%`,
     };
     for (const [id, value] of Object.entries(values)) {
@@ -228,6 +236,11 @@ export class UI {
       if (id.startsWith('tax-')) el.min = Math.round((state.treaty?.minTaxRate || 0) * 100);
       out.textContent = (formatters[id] || (v => v))(value);
     }
+    const available = state.people.filter(p => p.klass === 'official' && !p.isCriminal).length;
+    const activeRoles = Object.values(state.policy.officials).reduce((sum, count) => sum + count, 0);
+    const capacity = document.getElementById('official-capacity');
+    capacity.textContent = `计划配额 ${activeRoles} / 可用公务员 ${available}`;
+    capacity.classList.toggle('over', activeRoles > available);
   }
 
   updatePolicyLock(state) {
@@ -246,6 +259,7 @@ export class UI {
       else if (el.id === 'off-military') el.disabled = locked || state.year < 21;
       else el.disabled = locked;
     });
+    document.querySelectorAll('.policy-preset').forEach(btn => { btn.disabled = locked; });
     const security = document.getElementById('off-security');
     if (security && state.year < 5) security.title = '治安官人数从第 5 年起可以修改';
     const welfare = document.getElementById('off-welfare');
@@ -258,14 +272,21 @@ export class UI {
 
   renderLog(state) {
     const list = document.getElementById('log-list');
-    // 仅追加最新年份
-    const div = document.createElement('div');
-    div.innerHTML = state.log
+    const key = state.log[0] || `year-${state.year}`;
+    const html = state.log
       .map((l, i) => i === 0
         ? `<div class="log-year">${l}</div>`
         : `<div class="log-line">${l}</div>`)
       .join('');
-    list.prepend(div);
+    const first = list.firstElementChild;
+    if (first?.dataset.logKey === key) {
+      first.innerHTML = html;
+    } else {
+      const div = document.createElement('div');
+      div.dataset.logKey = key;
+      div.innerHTML = html;
+      list.prepend(div);
+    }
     // 限制条目数
     while (list.children.length > 30) list.removeChild(list.lastChild);
   }
@@ -350,6 +371,18 @@ export class UI {
     document.getElementById('tutorial-next').onclick = show;
     show();
   }
+}
+
+function signed(value, digits = 0) {
+  const number = Number(value) || 0;
+  const text = digits ? number.toFixed(digits) : String(Math.round(number));
+  return number > 0 ? `+${text}` : text;
+}
+
+function yearSummaryText(changes) {
+  if (!changes) return '推进一年后显示年度变化';
+  return `第 ${changes.year} 年变化　人口 ${signed(changes.population)}　` +
+    `国库 ${signed(changes.treasury)}　满意 ${signed(changes.avgSatisfaction, 2)}　罪犯 ${signed(changes.criminals)}`;
 }
 
 function canAdjustPolicy(state) {

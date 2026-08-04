@@ -4,10 +4,11 @@ Page({
   data: {
     taxFarmer: 5, taxWorker: 8, taxMerchant: 10,
     offTax: 1, offSec: 1, offWel: 0, offMil: 0, offTea: 2,
-    milRatio: 5,
+    milRatio: 5, officialWage:10,
     policyLocked: false, taxLocked: false, securityLocked: true,
     welfareLocked: true, militaryLocked: true,
     helpRole: '', policyTip: '', taxTip: '', taxFloor:0,
+    advancedOpen:false, officialCapacity:'',
   },
   onShow() {
     const s = app.globalData.state;
@@ -18,14 +19,15 @@ Page({
       taxMerchant: Math.round(p.tax.merchant * 100),
       offTax: p.officials.tax, offSec: p.officials.security,
       offWel: p.officials.welfare, offMil: p.officials.military,
-      offTea: p.officials.teacher, milRatio: Math.round(p.militaryRatio * 100),
+      offTea: p.officials.teacher, milRatio: Math.round(p.militaryRatio * 100), officialWage:p.officialWage,
       policyLocked: !this.canAdjustPolicy(),
       taxLocked: !this.canAdjustTax(),
-      securityLocked: s.year < 5 || Boolean(s.over || s.pendingEvent),
+      securityLocked: s.year < 5 || Boolean(s.over || s.pendingEvent || s.pendingWar),
       welfareLocked: s.year < 11 || !this.canAdjustPolicy(),
       militaryLocked: s.year < 21 || !this.canAdjustPolicy(),
       policyTip: this.policyTip(), taxTip: this.taxTip(),
       taxFloor: Math.round(app.api.treatyTaxFloor(s) * 100),
+      officialCapacity: this.officialCapacity(),
     });
   },
   canAdjustPolicy() {
@@ -71,7 +73,7 @@ Page({
     const welfareAllowed = key === 'offWel' && s.year >= 11 && this.canAdjustPolicy();
     const militaryAllowed = key === 'offMil' && s.year >= 21 && this.canAdjustPolicy();
     const taxAllowed = taxKeys.indexOf(key) >= 0 && this.canAdjustTax();
-    const regularAllowed = ['offTax', 'offTea', 'milRatio'].indexOf(key) >= 0 && this.canAdjustPolicy();
+    const regularAllowed = ['offTax', 'offTea', 'milRatio', 'officialWage'].indexOf(key) >= 0 && this.canAdjustPolicy();
     if (!securityAllowed && !welfareAllowed && !militaryAllowed && !taxAllowed && !regularAllowed) {
       wx.showToast({ title: '该政策当前未解锁或仍在冷却', icon: 'none' });
       this.onShow();
@@ -85,6 +87,7 @@ Page({
       taxMerchant:v => p.tax.merchant=v/100, offTax:v => p.officials.tax=v,
       offSec:v => p.officials.security=v, offWel:v => p.officials.welfare=v,
       offMil:v => p.officials.military=v, offTea:v => p.officials.teacher=v,
+      officialWage:v => p.officialWage=v,
       milRatio:v => p.militaryRatio=v/100,
     };
     map[key] && map[key](value);
@@ -94,5 +97,22 @@ Page({
   toggleOfficialHelp(e) {
     const role = e.currentTarget.dataset.role;
     this.setData({ helpRole: this.data.helpRole === role ? '' : role });
+  },
+  toggleAdvanced() { this.setData({advancedOpen:!this.data.advancedOpen}); },
+  officialCapacity() {
+    const s=app.globalData.state;
+    const available=s.people.filter(p=>p.klass==='official'&&!p.isCriminal).length;
+    const roles=s.policy.officials;
+    const active=Object.keys(roles).reduce((sum,key)=>sum+roles[key],0);
+    return `计划配额 ${active} / 可用公务员 ${available}`;
+  },
+  onPreset(e) {
+    if(!this.canAdjustPolicy()){
+      wx.showToast({title:'政策窗口尚未开放',icon:'none'});
+      return;
+    }
+    const result=app.api.applyPolicyPreset(app.globalData.state,e.currentTarget.dataset.preset,{includeTax:this.canAdjustTax()});
+    wx.showToast({title:`已采用${result.label}`,icon:'none'});
+    this.onShow();
   },
 });

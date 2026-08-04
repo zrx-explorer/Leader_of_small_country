@@ -12,6 +12,15 @@ game.onload = () => setTimeout(() => {
     const doc = game.contentDocument;
     const state = ctrl.state;
     assert(!doc.body.innerText.includes('善恶值') && !doc.body.innerText.includes('理性值'), '隐藏属性被显示在 Web 界面');
+    assert(!doc.querySelector('.advanced-policy').open, '高级调控没有默认收起');
+    const initialLogBlocks = doc.getElementById('log-list').children.length;
+    doc.querySelector('[data-preset="balanced"]').click();
+    assert(state.policy.tax.farmer === .06 && state.policy.militaryRatio === .05 && state.policy.officialWage === 10, 'Web 快捷政策方案没有生效');
+    assert(doc.getElementById('official-wage'), 'Web 缺少公务员工资调节项');
+    ctrl.setOfficialWage(18);
+    assert(state.policy.officialWage === 18, 'Web 无法调整公务员工资');
+    assert(Object.values(state.policy.officials).reduce((a,b)=>a+b,0) <= state.stats.byClass.official, 'Web 快捷方案超配公务员');
+    assert(doc.getElementById('log-list').children.length === initialLogBlocks, 'Web 快捷方案重复追加同一年度日志');
     while (state.people.length < 101) state.people.push({...state.people[0], id:1000 + state.people.length});
     state.stats.total = state.people.length;
     state.year = 11;
@@ -45,6 +54,14 @@ game.onload = () => setTimeout(() => {
     assert(state.policy.officials.military === 3, '解锁后无法调整军事官员');
     lines.push('PASS Web岗位解锁限制');
     lines.push('PASS 隐藏属性未显示在 Web 界面');
+
+    ctrl.restart();
+    ctrl.state.year = 2;
+    ctrl.state.rng.chance = () => false;
+    doc.getElementById('btn-fast').click();
+    assert(ctrl.state.year === 4, `推进至决策停在第${ctrl.state.year}年`);
+    assert(doc.getElementById('year-summary').textContent.includes('变化'), 'Web 没有显示年度变化摘要');
+    lines.push('PASS 快捷政策、工资调节、年度摘要与推进至决策');
   } catch (error) {
     lines.push(`FAIL ${error.message}`);
   }

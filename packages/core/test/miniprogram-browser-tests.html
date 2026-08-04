@@ -46,16 +46,70 @@ test('小程序存档会保留待处理事件', () => {
 test('小程序事件完整记录隐藏属性', () => {
   const game = load('game.js');
   const events = load('events.js').EVENTS;
-  assert(events.length >= 16, `小程序事件数量只有 ${events.length}`);
+  assert(events.length >= 20, `小程序事件数量只有 ${events.length}`);
   assert(events.every(e => e.options.every(o => o.hiddenEffects
     && Number.isFinite(o.hiddenEffects.morality) && o.hiddenEffects.morality !== 0
-    && Number.isFinite(o.hiddenEffects.rationality) && o.hiddenEffects.rationality !== 0)), '存在未配置隐藏属性的事件选项');
+    && Number.isFinite(o.hiddenEffects.rationality) && o.hiddenEffects.rationality !== 0
+    && o.tradeoffs && o.tradeoffs.benefit && o.tradeoffs.cost)), '存在未配置收益、代价或隐藏属性的事件选项');
   const state = game.newGame({chapter:1, seed:10});
   state.people[0].isCriminal = true;
   state.pendingEvent = events.find(e => e.id === 'criminal_sentencing');
   game.applyEventOption(state, 0);
   assert(!state.people[0].isCriminal, '小程序感化选项没有让罪犯从良');
   assert(state.morality === 3 && state.rationality === 1, '小程序隐藏属性没有结算');
+});
+
+test('小程序快捷政策方案不会超配公务员', () => {
+  const game=load('game.js');
+  const state=game.newGame({chapter:1,seed:12});
+  game.applyPolicyPreset(state,'balanced');
+  const allocated=Object.values(state.policy.officials).reduce((a,b)=>a+b,0);
+  assert(allocated<=state.stats.byClass.official,'小程序快捷方案超配公务员');
+  assert(state.policy.tax.farmer===.06&&state.policy.militaryRatio===.05&&state.policy.officialWage===10,'小程序均衡方案数值错误');
+  assert(state.policy.officials.security>0,'小程序快捷方案没有预留治安官');
+});
+
+test('小程序贪官、商人和灾民会改变人口结构',()=>{
+  const game=load('game.js'),events=load('events.js').EVENTS;
+  const corrupt=game.newGame({chapter:1,seed:84}),officials=corrupt.stats.byClass.official;
+  corrupt.pendingEvent=events.find(e=>e.id==='corrupt_official');game.applyEventOption(corrupt,0);
+  assert(corrupt.stats.byClass.official===officials-1,'小程序查办贪官未减少公务员');
+  const inflation=game.newGame({chapter:1,seed:85}),merchants=inflation.stats.byClass.merchant;
+  inflation.pendingEvent=events.find(e=>e.id==='inflation');game.applyEventOption(inflation,0);
+  assert(inflation.stats.byClass.merchant===merchants-1,'小程序处罚商人未转为农民');
+  const refugees=game.newGame({chapter:1,seed:86});refugees.year=7;const before=refugees.people.length;
+  refugees.pendingEvent=events.find(e=>e.id==='refugees_at_gate');game.applyEventOption(refugees,0);
+  const newcomers=refugees.people.filter(p=>p.refugeeWave===7);
+  assert(refugees.people.length>before&&newcomers.every(p=>p.satisfaction===-12&&!p.isCriminal),'小程序灾民人口或犯罪初始状态错误');
+  const maxId=Math.max(...refugees.people.map(p=>p.id)),later=load('person.js').createPerson(refugees.rng,'farmer');
+  assert(later.id>maxId,'小程序事件新增人口后出生编号冲突');
+});
+
+test('小程序生产保底与公务员工资按人数结算',()=>{
+  const cfg=load('config.js').DEFAULT_CONFIG,economy=load('economy.js'),gov=load('government.js'),rng={uniform:()=>0};
+  const farmer={klass:'farmer',isCriminal:false,intelligence:50,grain:0},worker={klass:'worker',isCriminal:false,intelligence:50,grain:100,product:0};
+  economy.farmersProduce([farmer],Object.assign({},cfg,{farmerProdMean:1,farmerProdJitter:0}),rng);
+  economy.workersProduce([worker],Object.assign({},cfg,{workerProdMean:1,workerProdJitter:0}),rng);
+  assert(farmer.grain===cfg.grainNeed*13&&worker.product===cfg.productNeedBase*13,'小程序生产未达到13倍需求');
+  const officials=[{klass:'official',isCriminal:false,grain:0,satisfaction:0},{klass:'official',isCriminal:false,grain:0,satisfaction:0}];
+  assert(gov.payWages(officials,100,cfg,[],12)===24,'小程序工资不是人数×单人工资');
+});
+
+test('小程序事件会避开最近两次结果', () => {
+  const game=load('game.js');
+  const eventModule=load('events.js');
+  const state=game.newGame({chapter:1,seed:13});
+  state.year=8;state.stats.avgIntelligence=60;
+  state.rng.chance=()=>true;state.rng.uniform=()=>0;
+  const ids=[eventModule.rollEvent(state).id,eventModule.rollEvent(state).id,eventModule.rollEvent(state).id];
+  assert(new Set(ids).size===3,`小程序连续抽到重复事件：${ids.join(',')}`);
+});
+
+test('小程序页面提供轻量操作入口', () => {
+  for(const file of ['../../../apps/miniprogram/pages/index/index.wxml','../../../apps/miniprogram/pages/policy/policy.wxml']){
+    const request=new XMLHttpRequest();request.open('GET',new URL(file,location.href),false);request.send();
+    assert(request.responseText.includes(file.includes('/index/')?'onAdvanceToDecision':'onPreset'),`${file} 缺少轻量操作入口`);
+  }
 });
 
 test('小程序核心可连续推进 30 年', () => {

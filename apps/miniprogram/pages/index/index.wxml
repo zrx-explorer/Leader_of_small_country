@@ -14,6 +14,7 @@
       <view class="hud-item">商 <text class="v">{{classCount.merchant}}</text></view>
       <view class="hud-item">公 <text class="v">{{classCount.official}}</text></view>
     </view>
+    <view style="font-size:22rpx;color:#54667a;margin-top:16rpx;">{{yearSummary}}</view>
   </view>
 
   <view wx:if="{{war}}" class="card" style="border-top:4rpx solid #c0392b;">
@@ -46,6 +47,7 @@
   <!-- 操作 -->
   <view class="card" wx:if="{{!event && !war && !over}}">
     <button class="btn-primary" bindtap="onNextYear">⏯ 下一年</button>
+    <button class="btn-ghost" bindtap="onAdvanceToDecision" style="margin-top:10rpx;">⏩ 推进至决策</button>
     <button class="btn-ghost" bindtap="onSave" style="margin-top:10rpx;">💾 存档</button>
   </view>
 

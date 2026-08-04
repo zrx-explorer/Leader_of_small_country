@@ -1,5 +1,5 @@
 // app.js
-const { newGame, nextYear, applyEventOption, applyWarDecision, estimateWarCost, treatyTaxFloor, serialize, deserialize } = require('./core/game.js');
+const { newGame, nextYear, applyEventOption, applyWarDecision, applyPolicyPreset, estimateWarCost, treatyTaxFloor, serialize, deserialize } = require('./core/game.js');
 
 App({
   globalData: {
@@ -21,6 +21,7 @@ App({
     nextYear: (state) => nextYear(state),
     applyEventOption: (state, idx) => applyEventOption(state, idx),
     applyWarDecision: (state, decision) => applyWarDecision(state, decision),
+    applyPolicyPreset: (state, presetId, options) => applyPolicyPreset(state, presetId, options),
     estimateWarCost: (state, plan) => estimateWarCost(state, plan),
     treatyTaxFloor: (state) => treatyTaxFloor(state),
     save(state) {

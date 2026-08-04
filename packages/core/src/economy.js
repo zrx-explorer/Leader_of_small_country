@@ -10,10 +10,11 @@ export function farmersProduce(people, cfg, rng) {
     if (p.klass !== CLASS.FARMER || p.isCriminal) continue;
     const t = clamp(p.intelligence, 10, 100);
     const yearly = cfg.yearlyFarmMultiplier ?? 1;
-    const out = (cfg.farmerProdMean / 10
+    const rawOutput = (cfg.farmerProdMean / 10
       + cfg.farmerProdJitter * (t - 50) / 100
       + rng.uniform(-1, 1)) * yearly;
-    p.grain += Math.max(0, out);
+    // 策划基线：一名农民至少供养 13 人；高于下限的原产量保持不变。
+    p.grain += Math.max(cfg.grainNeed * 13, rawOutput);
   }
 }
 
@@ -23,12 +24,13 @@ export function workersProduce(people, cfg, rng) {
     if (p.klass !== CLASS.WORKER || p.isCriminal) continue;
     const t = clamp(p.intelligence, 10, 100);
     const yearly = cfg.yearlyWorkerMultiplier ?? 1;
-    const out = (cfg.workerProdMean / 5
+    const rawOutput = (cfg.workerProdMean / 5
       + cfg.workerProdJitter * (t - 50) / 100
       + rng.uniform(-0.5, 0.5)) * yearly;
-    p.product += Math.max(0, out);
+    const output = Math.max(cfg.productNeedBase * 13, rawOutput);
+    p.product += output;
     // 生产成本（消耗粮食）
-    p.grain -= cfg.productionCost * Math.max(0, out) / 5;
+    p.grain -= cfg.productionCost * output / 5;
   }
 }
 
@@ -40,43 +42,72 @@ export function trade(people, cfg, rng, log) {
 
   if (!merchants.length || !workers.length || !buyers.length) return;
 
-  // 商人从工人处批发：定价 = max(3, 平均粮食意愿)
-  const supplyPerMerchant = workers.reduce((s, w) => s + w.product, 0) * 0.7 / merchants.length;
+  // 原策划案：工人集合定价不低于 3；商人先从工人处进货，再卖给官员和农民。
   const wholesalePrice = 3 * (cfg.yearlyPriceMultiplier ?? 1);
-
-  for (const m of merchants) {
-    let bought = 0;
-    for (const w of workers) {
-      const take = Math.min(w.product * 0.5, supplyPerMerchant - bought);
-      if (take <= 0) continue;
-      w.product -= take;
-      const pay = take * wholesalePrice;
-      w.grain += pay;
-      m.grain -= pay;
-      m.product = (m.product || 0) + take;
-      bought += take;
-      if (bought >= supplyPerMerchant) break;
-    }
-  }
-
-  // 商人卖给买家
+  const remainingDemand = new Map();
   for (const buyer of buyers) {
-    const need = productDemand(buyer.satisfaction, cfg.productDemandLow, cfg.productDemandHigh);
-    if (need <= 0) continue;
-    const want = Math.max(cfg.productNeedBase, Math.min(need, cfg.productReserveNeed));
-    const m = merchants[rng.int(0, merchants.length - 1)];
-    if (m.product <= 0) continue;
-    const markup = (buyer.klass === CLASS.OFFICIAL) ? 1.1 : 1.2;
-    const price = wholesalePrice * markup;
-    const canBuy = Math.min(want, m.product, buyer.grain / price);
-    if (canBuy > 0) {
-      m.product -= canBuy;
-      m.grain += canBuy * price;
-      buyer.grain -= canBuy * price;
-      buyer.product += canBuy;
+    const demand = productDemand(buyer.satisfaction, cfg.productDemandLow, cfg.productDemandHigh);
+    remainingDemand.set(buyer.id, Math.max(cfg.productNeedBase, Math.min(demand, cfg.productReserveNeed)));
+  }
+
+  let totalBought = 0, totalSold = 0, totalProfit = 0;
+  for (let merchantIndex = 0; merchantIndex < merchants.length; merchantIndex++) {
+    const merchant = merchants[merchantIndex];
+    merchant.product = Math.max(0, merchant.product || 0);
+    const demandLeft = buyers.reduce((sum, buyer) => sum + (remainingDemand.get(buyer.id) || 0), 0);
+    let toBuy = Math.max(0, Math.min(
+      demandLeft - merchant.product,
+      Math.max(0, merchant.grain) / wholesalePrice,
+    ));
+
+    // 尽量吃下全部可获利货源，但给工人留下自己的年度基本消费。
+    for (const worker of workers.slice().sort((a, b) => b.product - a.product)) {
+      const available = Math.max(0, worker.product - cfg.productNeedBase);
+      const take = Math.min(available, toBuy);
+      if (take <= 0) continue;
+      const payment = take * wholesalePrice;
+      worker.product -= take;
+      worker.grain += payment;
+      merchant.grain -= payment;
+      merchant.product += take;
+      totalBought += take;
+      toBuy -= take;
+      if (toBuy <= 0) break;
+    }
+
+    // 逐利排序：农村按含运输成本的 15%—25% 起价议价；官员固定加价 10%。
+    const quotedBuyers = buyers.map(buyer => {
+      const demand = remainingDemand.get(buyer.id) || 0;
+      const startMarkup = Math.max(1.15, 1.25 - merchantIndex * 0.10);
+      const askingPrice = buyer.klass === CLASS.OFFICIAL
+        ? wholesalePrice * 1.10
+        : (wholesalePrice + 1) * startMarkup;
+      return { buyer, demand, askingPrice };
+    }).filter(x => x.demand > 0)
+      .sort((a, b) => b.askingPrice - a.askingPrice || b.buyer.grain - a.buyer.grain);
+
+    for (const quote of quotedBuyers) {
+      if (merchant.product <= 0) break;
+      const { buyer } = quote;
+      let price = quote.askingPrice;
+      if (buyer.klass === CLASS.FARMER) {
+        const base = wholesalePrice + 1;
+        while (price > base * 1.01 && buyer.grain < price) price -= base * 0.05;
+        if (buyer.grain < price) price = base;
+      }
+      const quantity = Math.min(quote.demand, merchant.product, Math.max(0, buyer.grain) / price);
+      if (quantity <= 0) continue;
+      const revenue = quantity * price;
+      merchant.product -= quantity;
+      merchant.grain += revenue;
+      buyer.grain -= revenue;
+      buyer.product += quantity;
+      remainingDemand.set(buyer.id, quote.demand - quantity);
+      totalSold += quantity;
+      totalProfit += quantity * (price - wholesalePrice);
     }
   }
-  if (log) log.push(`商人撮合产品 ${merchants.length} 名商人参与交易`);
+  if (log) log.push(`商贸成交 ${totalSold.toFixed(1)} 件（进货 ${totalBought.toFixed(1)}，商人毛利 ${totalProfit.toFixed(1)}）`);
 }
 
 /** 消费：所有人消耗粮食和产品 */

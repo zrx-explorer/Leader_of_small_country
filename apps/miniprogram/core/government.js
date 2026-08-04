@@ -37,15 +37,17 @@ function collectTax(people, policy, log) {
   return total;
 }
 
-function payWages(people, treasury, cfg, log) {
+function payWages(people, treasury, cfg, log, wagePerOfficial) {
   const officials = people.filter(p => p.klass === CLASS.OFFICIAL && !p.isCriminal);
-  let cost = 0;
+  const wage=Math.max(0,Number(wagePerOfficial == null ? cfg.govWage : wagePerOfficial)||0);
+  let cost = 0, paid=0;
   for (const o of officials) {
-    if (treasury - cost >= cfg.govWage) {
-      o.grain += cfg.govWage; cost += cfg.govWage;
-    } else { o.satisfaction -= 1; }
+    if (treasury - cost >= wage) {
+      o.grain += wage; cost += wage; paid++;
+      if(wage<cfg.grainNeed)o.satisfaction-=.5;else if(wage>=cfg.grainReserveNeed)o.satisfaction+=.5;
+    } else { o.satisfaction -= 2; }
   }
-  if (log) log.push(`📜 公务员工资支出 -${cost.toFixed(1)}`);
+  if(log)log.push(`📜 公务员工资 -${cost.toFixed(1)}（${paid} 人 × 每人 ${wage.toFixed(1)}${paid<officials.length?`，欠薪 ${officials.length-paid} 人`:''}）`);
   return cost;
 }
 

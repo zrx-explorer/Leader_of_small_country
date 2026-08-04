@@ -3,7 +3,7 @@
  */
 import { DEFAULT_CONFIG, CHAPTERS, CLASS } from './config.js';
 import { RNG } from './math.js';
-import { seedPopulation, aggregate, recordPersonHistory } from './person.js';
+import { seedPopulation, aggregate, recordPersonHistory, syncNextId } from './person.js';
 import { farmersProduce, workersProduce, trade, consume } from './economy.js';
 import {
   updateSatisfaction, judgeStatus, enforceSecurity, plunder,
@@ -20,9 +20,72 @@ import {
 
 const DEFAULT_POLICY = () => ({
   tax: { farmer: 0.05, worker: 0.08, merchant: 0.10 },
+  officialWage: DEFAULT_CONFIG.govWage,
   militaryRatio: 0.05,
   officials: { tax: 1, security: 1, welfare: 0, military: 0, teacher: 2 },
 });
+
+export const POLICY_PRESETS = Object.freeze({
+  wellbeing: Object.freeze({
+    id: 'wellbeing', label: '休养生息',
+    tax: Object.freeze({ farmer: 0.03, worker: 0.05, merchant: 0.07 }),
+    officialWage: 15,
+    militaryRatio: 0.02,
+    rolePriority: Object.freeze(['welfare', 'teacher', 'teacher', 'security', 'military']),
+  }),
+  balanced: Object.freeze({
+    id: 'balanced', label: '均衡治理',
+    tax: Object.freeze({ farmer: 0.06, worker: 0.08, merchant: 0.10 }),
+    officialWage: 10,
+    militaryRatio: 0.05,
+    rolePriority: Object.freeze(['security', 'welfare', 'teacher', 'military', 'teacher']),
+  }),
+  defense: Object.freeze({
+    id: 'defense', label: '富国强兵',
+    tax: Object.freeze({ farmer: 0.10, worker: 0.12, merchant: 0.15 }),
+    officialWage: 8,
+    militaryRatio: 0.12,
+    rolePriority: Object.freeze(['military', 'security', 'military', 'teacher', 'welfare']),
+  }),
+});
+
+function roleUnlocked(role, year) {
+  if (role === 'security') return true; // 可提前预留，第 5 年起自动生效
+  if (role === 'welfare') return year >= 11;
+  if (role === 'military') return year >= 21;
+  return true;
+}
+
+/** 一键应用轻量政策方案；精细滑块仍可继续覆盖方案结果。 */
+export function applyPolicyPreset(state, presetId, { includeTax = true } = {}) {
+  const preset = POLICY_PRESETS[presetId] || POLICY_PRESETS.balanced;
+  const floor = state.treaty?.minTaxRate || 0;
+  let taxesChanged = false;
+  if (includeTax) {
+    for (const klass of ['farmer', 'worker', 'merchant']) {
+      const value = Math.max(floor, preset.tax[klass]);
+      if (state.policy.tax[klass] !== value) taxesChanged = true;
+      state.policy.tax[klass] = value;
+    }
+    if (taxesChanged) state.lastTaxChangeYear = state.year;
+  }
+  state.policy.militaryRatio = preset.militaryRatio;
+  state.policy.officialWage = preset.officialWage;
+
+  const available = state.people.filter(p => p.klass === 'official' && !p.isCriminal).length;
+  const roles = { tax: 0, security: 0, welfare: 0, military: 0, teacher: 0 };
+  const taxpayers = state.people.filter(p => p.klass !== 'official' && !p.isCriminal).length;
+  roles.tax = Math.min(available, Math.max(1, Math.ceil(taxpayers / 100)));
+  let remaining = available - roles.tax;
+  const priority = preset.rolePriority.filter(role => roleUnlocked(role, state.year));
+  for (let i = 0; remaining > 0 && priority.length; i++, remaining--) {
+    roles[priority[i % priority.length]] += 1;
+  }
+  state.policy.officials = roles;
+  state.log.push(`采用「${preset.label}」方案：公务员配额 ${available - remaining}/${available}` +
+    (includeTax ? '' : '；税率仍在冷却中'));
+  return { presetId: preset.id, label: preset.label, available, allocated: available - remaining, taxesChanged };
+}
 
 /** 创建游戏状态 */
 export function newGame({ chapter = 1, seed = Date.now() } = {}) {
@@ -54,6 +117,8 @@ export function newGame({ chapter = 1, seed = Date.now() } = {}) {
     consecutiveCrimeYears: 0,
     consecutiveLowSatYears: 0,
     lastTaxChangeYear: null,
+    lastYearChanges: null,
+    recentEventIds: [],
     storyHooks: [],
     modifiers: {},
   };
@@ -118,6 +183,12 @@ function rollYearModifiers(state, log) {
 export function nextYear(state) {
   if (state.over) return state;
   if (state.pendingEvent || state.pendingWar) return state;  // 必须先决策
+  const before = {
+    population: state.stats.total,
+    treasury: state.treasury,
+    avgSatisfaction: state.stats.avgSatisfaction,
+    criminals: state.stats.criminals,
+  };
   const log = [];
   state.log = log;
   log.push(`━━ 第 ${state.year} 年 ━━`);
@@ -137,7 +208,7 @@ export function nextYear(state) {
   // ④ 税收 / 工资 / 军事
   const taxRevenue = collectTax(state.people, state.policy, log);
   state.treasury += settleTreatyTax(state, taxRevenue, log);
-  state.treasury -= payWages(state.people, state.treasury, state.cfg, log);
+  state.treasury -= payWages(state.people, state.treasury, state.cfg, log, state.policy.officialWage);
   state.treasury -= military(state.treasury, state.policy, log);
 
   // ⑤ 教育
@@ -164,6 +235,13 @@ export function nextYear(state) {
 
   // ⑪ 重新统计
   state.stats = aggregate(state.people);
+  state.lastYearChanges = {
+    year: state.year,
+    population: state.stats.total - before.population,
+    treasury: Math.round(state.treasury - before.treasury),
+    avgSatisfaction: +(state.stats.avgSatisfaction - before.avgSatisfaction).toFixed(2),
+    criminals: state.stats.criminals - before.criminals,
+  };
   recordPersonHistory(state.people, state.year);
   state.history.push(snapshot(state));
 
@@ -245,9 +323,10 @@ export function serialize(s) {
     year: s.year, chapter: s.chapter, seed: s.seed,
     treasury: s.treasury, morality: s.morality, rationality: s.rationality,
     people: s.people, policy: s.policy,
-    flags: s.flags, history: s.history,
+    flags: s.flags, history: s.history, log: s.log,
     storyHooks: s.storyHooks, modifiers: s.modifiers,
     lastTaxChangeYear: s.lastTaxChangeYear,
+    lastYearChanges: s.lastYearChanges, recentEventIds: s.recentEventIds,
     pendingEventId: s.pendingEvent?.id || null,
     pendingWar: s.pendingWar, treaty: s.treaty,
     lastWarYear: s.lastWarYear, warHistory: s.warHistory,
@@ -262,12 +341,18 @@ export function deserialize(json) {
   s.morality = Number.isFinite(o.morality) ? o.morality : 0;
   s.rationality = Number.isFinite(o.rationality) ? o.rationality : 0;
   s.people = o.people;
+  syncNextId(s.people);
   for (const p of s.people) {
     if (!p.gender) p.gender = p.id % 2 ? 'male' : 'female';
   }
-  s.policy = o.policy; s.flags = o.flags; s.history = o.history;
+  s.policy = o.policy || DEFAULT_POLICY();
+  if (!Number.isFinite(s.policy.officialWage)) s.policy.officialWage = DEFAULT_CONFIG.govWage;
+  s.flags = o.flags || {}; s.history = o.history || [];
+  s.log = Array.isArray(o.log) ? o.log : s.log;
   s.storyHooks = o.storyHooks || []; s.modifiers = o.modifiers || {};
   s.lastTaxChangeYear = o.lastTaxChangeYear ?? null;
+  s.lastYearChanges = o.lastYearChanges || null;
+  s.recentEventIds = Array.isArray(o.recentEventIds) ? o.recentEventIds.slice(-2) : [];
   s.pendingEvent = o.pendingEventId ? (EVENTS.find(e => e.id === o.pendingEventId) || null) : null;
   s.pendingWar = o.pendingWar || null; s.treaty = o.treaty || null;
   s.lastWarYear = o.lastWarYear ?? null; s.warHistory = o.warHistory || [];
