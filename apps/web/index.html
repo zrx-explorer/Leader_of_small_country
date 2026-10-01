@@ -17,6 +17,7 @@
       <span class="hud-item" title="平均满意度">😊 <b id="hud-sat">0</b></span>
       <span class="hud-item" title="平均智力">🧠 <b id="hud-int">0</b></span>
       <span class="hud-item warn" title="罪犯">💀 <b id="hud-crim">0</b></span>
+      <span class="hud-item" title="国库储备35% · 满意度35% · 人口20% · 智力10%；低分不会结束游戏">治理 <b id="hud-score">0</b>/100</span>
     </div>
     <div class="actions">
       <button id="btn-save" class="btn btn-ghost">💾 存档</button>
@@ -60,9 +61,9 @@
 
       <fieldset>
         <legend>公务员配额</legend>
-        <label>人均年工资 <output id="out-official-wage">10 / 人</output>
-          <span class="role-help-text">实际支出 = 在职公务员人数 × 工资；原策划案参考值 60</span>
-          <input type="range" id="official-wage" min="0" max="100" step="1" value="10" />
+        <label>人均年工资 <output id="out-official-wage">20 / 人</output>
+          <span class="role-help-text">实际支出 = 在职成年公务员人数 × 工资；默认 20 覆盖口粮与产品消费</span>
+          <input type="range" id="official-wage" min="0" max="100" step="1" value="20" />
         </label>
         <label>税务 <button class="help-btn role-help-btn" type="button" data-help="help-tax">?</button><output id="out-off-tax">1</output>
           <span id="help-tax" class="role-help-text hidden">每人管辖 100 名纳税人｜开局解锁</span>

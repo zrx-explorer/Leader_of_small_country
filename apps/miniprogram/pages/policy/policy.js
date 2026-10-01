@@ -4,7 +4,7 @@ Page({
   data: {
     taxFarmer: 5, taxWorker: 8, taxMerchant: 10,
     offTax: 1, offSec: 1, offWel: 0, offMil: 0, offTea: 2,
-    milRatio: 5, officialWage:10,
+    milRatio: 5, officialWage:20,
     policyLocked: false, taxLocked: false, securityLocked: true,
     welfareLocked: true, militaryLocked: true,
     helpRole: '', policyTip: '', taxTip: '', taxFloor:0,
@@ -31,6 +31,7 @@ Page({
     });
   },
   canAdjustPolicy() {
+    if(app.globalData.busy)return false;
     const s = app.globalData.state;
     return !s.over && !s.pendingEvent && !s.pendingWar && (s.year - 1) % 3 === 0;
   },
@@ -42,6 +43,7 @@ Page({
     return count > 10 ? 1 : Math.max(1, 11 - count);
   },
   canAdjustTax() {
+    if(app.globalData.busy)return false;
     const s = app.globalData.state;
     if (s.over || s.pendingEvent || s.pendingWar) return false;
     if (s.people.length <= 100) return this.canAdjustPolicy();
@@ -66,6 +68,7 @@ Page({
     return `${count}名民生官员：${Math.max(0, interval - (s.year - s.lastTaxChangeYear))}年后可调税`;
   },
   onSlider(e) {
+    if(app.globalData.busy)return;
     const key = e.currentTarget.dataset.key;
     const s = app.globalData.state;
     const taxKeys = ['taxFarmer', 'taxWorker', 'taxMerchant'];
@@ -101,7 +104,7 @@ Page({
   toggleAdvanced() { this.setData({advancedOpen:!this.data.advancedOpen}); },
   officialCapacity() {
     const s=app.globalData.state;
-    const available=s.people.filter(p=>p.klass==='official'&&!p.isCriminal).length;
+    const available=s.people.filter(p=>p.klass==='official'&&!p.isCriminal&&p.age>=18).length;
     const roles=s.policy.officials;
     const active=Object.keys(roles).reduce((sum,key)=>sum+roles[key],0);
     return `计划配额 ${active} / 可用公务员 ${available}`;

@@ -94,6 +94,7 @@ export class UI {
     document.getElementById('hud-sat').textContent = state.stats.avgSatisfaction;
     document.getElementById('hud-int').textContent = state.stats.avgIntelligence;
     document.getElementById('hud-crim').textContent = state.stats.criminals;
+    document.getElementById('hud-score').textContent = state.score.total;
     document.getElementById('year-summary').textContent = yearSummaryText(state.lastYearChanges);
 
     // 章节进度
@@ -236,7 +237,7 @@ export class UI {
       if (id.startsWith('tax-')) el.min = Math.round((state.treaty?.minTaxRate || 0) * 100);
       out.textContent = (formatters[id] || (v => v))(value);
     }
-    const available = state.people.filter(p => p.klass === 'official' && !p.isCriminal).length;
+    const available = state.people.filter(p => p.klass === 'official' && !p.isCriminal && p.age >= 18).length;
     const activeRoles = Object.values(state.policy.officials).reduce((sum, count) => sum + count, 0);
     const capacity = document.getElementById('official-capacity');
     capacity.textContent = `计划配额 ${activeRoles} / 可用公务员 ${available}`;

@@ -65,7 +65,7 @@ test('小程序快捷政策方案不会超配公务员', () => {
   game.applyPolicyPreset(state,'balanced');
   const allocated=Object.values(state.policy.officials).reduce((a,b)=>a+b,0);
   assert(allocated<=state.stats.byClass.official,'小程序快捷方案超配公务员');
-  assert(state.policy.tax.farmer===.06&&state.policy.militaryRatio===.05&&state.policy.officialWage===10,'小程序均衡方案数值错误');
+  assert(state.policy.tax.farmer===.06&&state.policy.militaryRatio===.05&&state.policy.officialWage===20,'小程序均衡方案数值错误');
   assert(state.policy.officials.security>0,'小程序快捷方案没有预留治安官');
 });
 
@@ -87,11 +87,11 @@ test('小程序贪官、商人和灾民会改变人口结构',()=>{
 
 test('小程序生产保底与公务员工资按人数结算',()=>{
   const cfg=load('config.js').DEFAULT_CONFIG,economy=load('economy.js'),gov=load('government.js'),rng={uniform:()=>0};
-  const farmer={klass:'farmer',isCriminal:false,intelligence:50,grain:0},worker={klass:'worker',isCriminal:false,intelligence:50,grain:100,product:0};
+  const farmer={age:25,klass:'farmer',isCriminal:false,intelligence:50,grain:0},worker={age:25,klass:'worker',isCriminal:false,intelligence:50,grain:100,product:0};
   economy.farmersProduce([farmer],Object.assign({},cfg,{farmerProdMean:1,farmerProdJitter:0}),rng);
   economy.workersProduce([worker],Object.assign({},cfg,{workerProdMean:1,workerProdJitter:0}),rng);
   assert(farmer.grain===cfg.grainNeed*13&&worker.product===cfg.productNeedBase*13,'小程序生产未达到13倍需求');
-  const officials=[{klass:'official',isCriminal:false,grain:0,satisfaction:0},{klass:'official',isCriminal:false,grain:0,satisfaction:0}];
+  const officials=[{age:25,klass:'official',isCriminal:false,grain:0,satisfaction:0},{age:25,klass:'official',isCriminal:false,grain:0,satisfaction:0}];
   assert(gov.payWages(officials,100,cfg,[],12)===24,'小程序工资不是人数×单人工资');
 });
 
@@ -120,6 +120,7 @@ test('小程序核心可连续推进 30 年', () => {
     if (state.pendingWar) game.applyWarDecision(state, {action:'fight',conscriptionRate:.2,supplyLevel:2,equipmentLevel:2});
     game.nextYear(state);
     assert(state.people.length <= state.cfg.populationHardCap, '人口突破硬上限');
+    assert(!state.over,'小程序提前结束，未完成30年');
   }
 });
 
@@ -136,8 +137,8 @@ test('小程序战争核心可结算并生成条约', () => {
 
 test('小程序税务官管辖上限为 100', () => {
   const {assignRoles, collectTax} = load('government.js');
-  const people = Array.from({length:201}, (_, i) => ({id:i, klass:'farmer', grain:100, product:0, isCriminal:false, role:null}));
-  people.push({id:999, klass:'official', grain:0, product:0, isCriminal:false, role:null});
+  const people = Array.from({length:201}, (_, i) => ({id:i, age:25, yearIncome:100, klass:'farmer', grain:100, product:0, isCriminal:false, role:null}));
+  people.push({id:999, age:25, klass:'official', grain:0, product:0, isCriminal:false, role:null});
   const policy = {tax:{farmer:.1,worker:0,merchant:0}, officials:{tax:1,security:0,welfare:0,military:0,teacher:0}};
   assignRoles(people, policy);
   assert(collectTax(people, policy, []) === 1000, '税收覆盖人数不正确');

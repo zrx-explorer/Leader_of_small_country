@@ -13,6 +13,7 @@ import {
   assignRoles, collectTax, payWages, educate, military, securityCount,
 } from './government.js';
 import { EVENTS, rollEvent } from './events.js';
+import { governanceScore } from './score.js';
 import {
   maybeStartWar, applyWarDecision as resolveWar, estimateWarCost,
   treatyTaxFloor, enforceTreatyTaxFloor, settleTreatyTax,
@@ -29,14 +30,14 @@ export const POLICY_PRESETS = Object.freeze({
   wellbeing: Object.freeze({
     id: 'wellbeing', label: '休养生息',
     tax: Object.freeze({ farmer: 0.03, worker: 0.05, merchant: 0.07 }),
-    officialWage: 15,
+    officialWage: 22,
     militaryRatio: 0.02,
     rolePriority: Object.freeze(['welfare', 'teacher', 'teacher', 'security', 'military']),
   }),
   balanced: Object.freeze({
     id: 'balanced', label: '均衡治理',
     tax: Object.freeze({ farmer: 0.06, worker: 0.08, merchant: 0.10 }),
-    officialWage: 10,
+    officialWage: 20,
     militaryRatio: 0.05,
     rolePriority: Object.freeze(['security', 'welfare', 'teacher', 'military', 'teacher']),
   }),
@@ -72,7 +73,7 @@ export function applyPolicyPreset(state, presetId, { includeTax = true } = {}) {
   state.policy.militaryRatio = preset.militaryRatio;
   state.policy.officialWage = preset.officialWage;
 
-  const available = state.people.filter(p => p.klass === 'official' && !p.isCriminal).length;
+  const available = state.people.filter(p => p.klass === 'official' && !p.isCriminal && p.age >= 18).length;
   const roles = { tax: 0, security: 0, welfare: 0, military: 0, teacher: 0 };
   const taxpayers = state.people.filter(p => p.klass !== 'official' && !p.isCriminal).length;
   roles.tax = Math.min(available, Math.max(1, Math.ceil(taxpayers / 100)));
@@ -123,6 +124,7 @@ export function newGame({ chapter = 1, seed = Date.now() } = {}) {
     modifiers: {},
   };
   state.stats = aggregate(people);
+  state.score = governanceScore(state);
   recordPersonHistory(state.people, state.year);
   return state;
 }
@@ -142,6 +144,7 @@ export function applyEventOption(state, optionIndex) {
   state.rationality = (Number.isFinite(state.rationality) ? state.rationality : 0)
     + (Number.isFinite(rationalityDelta) ? rationalityDelta : 0);
   state.stats = aggregate(state.people);
+  state.score = governanceScore(state);
   if (opt.storyHook) state.storyHooks.push(opt.storyHook);
   state.pendingEvent = null;
 }
@@ -149,6 +152,7 @@ export function applyEventOption(state, optionIndex) {
 export function applyWarDecision(state, decision) {
   const result = resolveWar(state, decision);
   state.stats = aggregate(state.people);
+  state.score = governanceScore(state);
   return result;
 }
 
@@ -194,6 +198,15 @@ export function nextYear(state) {
   log.push(`━━ 第 ${state.year} 年 ━━`);
   const yearCfg = rollYearModifiers(state, log);
   enforceTreatyTaxFloor(state, log);
+
+  for (const person of state.people) person.yearIncome = 0;
+  // 老公务员离任后从本国成年人补缺，不能让默认岗位永久无人接任。
+  const vacancies = Math.min(Math.max(1, Math.floor(state.people.length * 0.12)), Object.values(state.policy.officials).reduce((a,b) => a+b, 0))
+    - state.people.filter(p => p.klass === 'official' && !p.isCriminal && p.age >= 18).length;
+  const recruits = state.people.filter(p => p.klass !== 'official' && !p.isCriminal && p.age >= 18 && p.age < 50)
+    .sort((a,b) => b.intelligence - a.intelligence).slice(0, Math.max(0, vacancies));
+  for (const person of recruits) { person.klass = 'official'; person.role = null; }
+  if (recruits.length) log.push(`补录 ${recruits.length} 名公务员接任空缺`);
 
   // ① 分配公务员岗位
   assignRoles(state.people, state.policy, state.year);
@@ -260,6 +273,7 @@ export function nextYear(state) {
 
 /** 历史快照 */
 function snapshot(s) {
+  s.score = governanceScore(s);
   return {
     year: s.year,
     population: s.stats.total,
@@ -268,6 +282,7 @@ function snapshot(s) {
     avgIntelligence: s.stats.avgIntelligence,
     avgWealth: s.stats.avgWealth,
     criminals: s.stats.criminals,
+    score: s.score.total,
     treaty: s.treaty ? { ...s.treaty } : null,
     modifiers: { ...s.modifiers },
     byClass: { ...s.stats.byClass },
@@ -331,6 +346,8 @@ export function serialize(s) {
     pendingWar: s.pendingWar, treaty: s.treaty,
     lastWarYear: s.lastWarYear, warHistory: s.warHistory,
     rngState: s.rng.s,
+    over: s.over, consecutiveBadYears: s.consecutiveBadYears,
+    consecutiveCrimeYears: s.consecutiveCrimeYears, consecutiveLowSatYears: s.consecutiveLowSatYears,
   });
 }
 
@@ -356,8 +373,13 @@ export function deserialize(json) {
   s.pendingEvent = o.pendingEventId ? (EVENTS.find(e => e.id === o.pendingEventId) || null) : null;
   s.pendingWar = o.pendingWar || null; s.treaty = o.treaty || null;
   s.lastWarYear = o.lastWarYear ?? null; s.warHistory = o.warHistory || [];
-  s.rng.s = o.rngState;
+  if (Number.isFinite(o.rngState) && (o.rngState >>> 0) !== 0) s.rng.s = o.rngState >>> 0;
+  s.over = o.over || null;
+  s.consecutiveBadYears = o.consecutiveBadYears || 0;
+  s.consecutiveCrimeYears = o.consecutiveCrimeYears || 0;
+  s.consecutiveLowSatYears = o.consecutiveLowSatYears || 0;
   s.stats = aggregate(s.people);
+  s.score = governanceScore(s);
   return s;
 }
 

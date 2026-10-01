@@ -33,7 +33,8 @@ export function updateSatisfaction(people, cfg, stats) {
     if (p.klass === poorestClass && (p.klass === CLASS.FARMER || p.klass === CLASS.WORKER)) {
       dS -= gapPenalty * 0.3;
     }
-    p.satisfaction = clamp(p.satisfaction + dS, -30, 30);
+    // 对当前生活水平作评价，避免同一微小加减项无限累积至极端。
+    p.satisfaction = clamp(p.satisfaction + (8 - p.satisfaction) * 0.10 + dS, -30, 30);
   }
 }
 
@@ -42,7 +43,7 @@ export function judgeStatus(people, rng, cfg, year, log) {
   if (year < cfg.crimeStartYear) return;
   let added = 0;
   for (const p of people) {
-    if (p.isCriminal) continue;
+    if (p.isCriminal || p.age < 16) continue;
     const lowSeverity = Math.max(0, cfg.rebelThreshold - p.satisfaction);
     const highSeverity = Math.max(0, p.satisfaction - cfg.inflatedThreshold);
     const chance = lowSeverity > 0
@@ -60,10 +61,10 @@ export function judgeStatus(people, rng, cfg, year, log) {
   if (added && log) log.push(`💀 满意度失衡新增 ${added} 名罪犯`);
 }
 
-/** 治安：少于 10 人时每 2 人处理 1 名，达到 10 人后每人处理 1 名。 */
+/** 治安：单人也可处理一名；2—9 人每 2 人处理 1 名，10 人起每人 1 名。 */
 export function enforceSecurity(people, rng, securityCount, year, log) {
   if (year < 5 || securityCount <= 0) return;
-  const quota = securityCount < 10 ? Math.floor(securityCount / 2) : securityCount;
+  const quota = securityCount < 10 ? Math.max(1, Math.floor(securityCount / 2)) : securityCount;
   const criminals = people.filter(p => p.isCriminal).slice(0, quota);
   let reformed = 0, removed = 0;
   for (const criminal of criminals) {
@@ -107,6 +108,7 @@ export function birth(people, rng, cfg, log) {
     [CLASS.FARMER]: cfg.birthRateFarmer,
     [CLASS.WORKER]: cfg.birthRateWorker,
     [CLASS.MERCHANT]: cfg.birthRateMerchant,
+    [CLASS.OFFICIAL]: cfg.birthRateMerchant,
   };
   let births = 0;
   const summary = [];
@@ -156,13 +158,21 @@ export function ageAndDie(people, rng, cfg, log) {
 export function classMobility(people, log) {
   // 升级：各阶级智力最高者，连续 3 年达标，进入更高阶级
   const order = [CLASS.FARMER, CLASS.WORKER, CLASS.MERCHANT];
+  for (const person of people) {
+    const qualified = person.age >= 18 && !person.isCriminal && person.intelligence > 70 && person.satisfaction > 0;
+    person.promotionYears = qualified ? (person.promotionYears || 0) + 1 : 0;
+  }
   for (let i = 0; i < order.length - 1; i++) {
     const from = order[i], to = order[i + 1];
     const candidates = people
-      .filter(p => p.klass === from && !p.isCriminal && p.satisfaction > 0)
+      .filter(p => p.klass === from && !p.isCriminal && p.age >= 18 && p.satisfaction > 0)
       .sort((a, b) => b.intelligence - a.intelligence);
-    if (candidates.length > 3 && candidates[0].intelligence > 70) {
+    const floor = Math.max(4, Math.ceil(people.length * (from === CLASS.FARMER ? 0.4 : 0.18)));
+    const destination = people.filter(p => p.klass === to && !p.isCriminal).length;
+    if (candidates.length > floor && destination < people.length * (to === CLASS.MERCHANT ? 0.10 : 0.25) && candidates[0].intelligence > 70) {
+      if (candidates[0].promotionYears < 3) continue;
       candidates[0].klass = to;
+      candidates[0].promotionYears = 0;
       if (log) log.push(`⬆ 一名${className(from)}升为${className(to)}`);
     }
   }

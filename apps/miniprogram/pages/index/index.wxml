@@ -7,6 +7,7 @@
       <view class="hud-item">满意 <text class="v">{{sat}}</text></view>
       <view class="hud-item">智力 <text class="v">{{intel}}</text></view>
       <view class="hud-item">罪犯 <text class="v" style="color:#c0392b">{{crim}}</text></view>
+      <view class="hud-item">治理 <text class="v">{{score}}/100</text></view>
     </view>
     <view class="hud-row" style="margin-top:12rpx;">
       <view class="hud-item">农 <text class="v">{{classCount.farmer}}</text></view>
@@ -15,6 +16,17 @@
       <view class="hud-item">公 <text class="v">{{classCount.official}}</text></view>
     </view>
     <view style="font-size:22rpx;color:#54667a;margin-top:16rpx;">{{yearSummary}}</view>
+  </view>
+
+  <view wx:if="{{busy}}" class="year-transition">
+    <view class="transition-card">
+      <view class="transition-scene">☀️　⛰️　🏯　🌾</view>
+      <view class="title">四时流转 · 年度结算</view>
+      <view>{{phase}}</view>
+      <progress percent="{{progress}}" activeColor="#b84032" stroke-width="8" show-info />
+      <view class="transition-note">新的年度即将展开</view>
+      <button bindtap="onSkipTransition">跳过动画</button>
+    </view>
   </view>
 
   <view wx:if="{{war}}" class="card" style="border-top:4rpx solid #c0392b;">
@@ -46,9 +58,9 @@
 
   <!-- 操作 -->
   <view class="card" wx:if="{{!event && !war && !over}}">
-    <button class="btn-primary" bindtap="onNextYear">⏯ 下一年</button>
-    <button class="btn-ghost" bindtap="onAdvanceToDecision" style="margin-top:10rpx;">⏩ 推进至决策</button>
-    <button class="btn-ghost" bindtap="onSave" style="margin-top:10rpx;">💾 存档</button>
+    <button class="btn-primary" disabled="{{busy}}" bindtap="onNextYear">⏯ 下一年</button>
+    <button class="btn-ghost" disabled="{{busy}}" bindtap="onAdvanceToDecision" style="margin-top:10rpx;">⏩ 推进至决策</button>
+    <button class="btn-ghost" disabled="{{busy}}" bindtap="onSave" style="margin-top:10rpx;">💾 存档</button>
   </view>
 
   <view class="card" wx:if="{{over}}" style="border-top:4rpx solid #c0392b;">

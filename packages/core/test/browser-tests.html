@@ -7,7 +7,7 @@ import { RNG } from '../src/math.js';
 import { DEFAULT_CONFIG, CLASS } from '../src/config.js';
 import { createPerson, aggregate } from '../src/person.js';
 import { assignRoles, collectTax, payWages } from '../src/government.js';
-import { farmersProduce, workersProduce, trade } from '../src/economy.js';
+import { farmersProduce, workersProduce, trade, consume } from '../src/economy.js';
 import { birth, ageAndDie, judgeStatus, enforceSecurity, plunder } from '../src/society.js';
 import { EVENTS, rollEvent } from '../src/events.js';
 import { newGame, nextYear, applyEventOption, applyWarDecision, applyPolicyPreset, estimateWarCost, treatyTaxFloor, serialize, deserialize } from '../src/game.js';
@@ -201,7 +201,7 @@ function basePerson(id, overrides = {}) {
 }
 
 test('税务官每人只覆盖 100 人', () => {
-  const people = Array.from({length:250}, (_, i) => basePerson(i + 1));
+  const people = Array.from({length:250}, (_, i) => basePerson(i + 1, {yearIncome:100}));
   people.push(basePerson(999, { klass:CLASS.OFFICIAL }));
   const policy = { tax:{farmer:.1,worker:0,merchant:0}, officials:{tax:1,security:0,welfare:0,military:0,teacher:0} };
   assignRoles(people, policy);
@@ -233,12 +233,12 @@ test('没有一男一女就不会出生', () => {
   assert(pair.length === 3, `一对男女应出生 1 人，实际 ${pair.length - 2}`);
 });
 
-test('事故死亡率长期样本约为 1%', () => {
+test('事故死亡率长期样本约为 0.3%', () => {
   const rng = new RNG(20260710);
   const people = Array.from({length:10000}, (_, i) => basePerson(i + 1, {age:20}));
   ageAndDie(people, rng, {...DEFAULT_CONFIG, deathStartAge:200, deathHardCap:220, starvationDeathRate:0}, []);
   const deaths = 10000 - people.length;
-  assert(deaths >= 70 && deaths <= 130, `事故死亡 ${deaths} 人`);
+  assert(deaths >= 15 && deaths <= 45, `事故死亡 ${deaths} 人`);
 });
 
 test('前五年无罪犯，之后高低满意度均可能犯罪', () => {
@@ -389,6 +389,42 @@ test('长程人口不会突破硬上限', () => {
     }
   }
   results.push(`INFO 长程模拟最大人口 ${maxPopulation}`);
+});
+
+
+test('税收不对工人库存和储蓄重复征收', () => {
+  const people=[basePerson(700,{klass:'worker',grain:100,product:1000,yearIncome:0}),basePerson(701,{klass:'farmer',grain:10000,yearIncome:130}),basePerson(702,{klass:'official',role:'tax'})];
+  assert(collectTax(people,{tax:{farmer:.05,worker:.08,merchant:.10}},[])===6.5,'库存或存粮被征税');
+  assert(people[0].grain===100,'工人未卖出商品仍被扣税');
+});
+test('婴儿由家庭真实存粮赡养，不承担成人生产与口粮', () => {
+  const child=basePerson(710,{age:0,grain:5,product:1}),adult=basePerson(711,{grain:100,product:6});
+  farmersProduce([child],DEFAULT_CONFIG,{uniform:()=>0});
+  assert(child.grain===5,'婴儿竟能独自种田');
+  consume([child,adult],DEFAULT_CONFIG);
+  assert(child.grain===20 && adult.grain===70,'家庭转移口粮不守恒');
+});
+test('一名治安官也能处理一名罪犯', () => {
+  const criminal=basePerson(720,{isCriminal:true});
+  enforceSecurity([criminal],{chance:()=>true},1,6,[]);
+  assert(!criminal.isCriminal,'默认单名治安官处理能力为零');
+});
+test('默认设置低评分也能持续经营120年', () => {
+  for(let seed=1;seed<=8;seed++){
+    const state=newGame({seed});
+    for(let i=0;i<120;i++){
+      if(state.pendingEvent){
+        const cost=Number(state.pendingEvent.options[0].label.match(/国库\s*-\s*(\d+)/)?.[1]||0);
+        applyEventOption(state,state.treasury>=cost+100?0:1);
+      }
+      if(state.pendingWar)applyWarDecision(state,{action:'treaty'});
+      nextYear(state);
+      assert(!state.over,`seed=${seed} 第${state.year}年 ${state.over}`);
+      assert(Number.isFinite(state.score.total),'评分不合法');
+    }
+    assert(state.year===121,'未真正完成120年模拟');
+    assert(state.score.total<65,'默认评分过高，没有成长空间');
+  }
 });
 
 const failed = results.filter(line => line.startsWith('FAIL')).length;

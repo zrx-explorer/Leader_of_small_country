@@ -6,11 +6,13 @@ import {
   applyWarDecision, applyPolicyPreset, estimateWarCost, treatyTaxFloor, serialize, deserialize,
 } from '../../../packages/core/src/game.js';
 import { UI } from './ui.js';
+import { createYearTransition } from './year-transition.js';
 
 const SAVE_KEY = 'xiaoguo.save.v1';
 
 class Controller {
   constructor() {
+    this.transition = createYearTransition();
     this.state = newGame({ chapter: 1, seed: Date.now() });
     this.ui = new UI(this);
     this.ui.render(this.state);
@@ -27,7 +29,7 @@ class Controller {
 
   // === 玩家交互 ===
   canAdjustPolicy() {
-    return !this.state.over && !this.state.pendingEvent && !this.state.pendingWar && (this.state.year - 1) % 3 === 0;
+    return !this.transition.busy && !this.state.over && !this.state.pendingEvent && !this.state.pendingWar && (this.state.year - 1) % 3 === 0;
   }
   welfareCount() {
     return this.state.people.filter(p => !p.isCriminal && p.role === 'welfare').length;
@@ -37,6 +39,7 @@ class Controller {
     return count > 10 ? 1 : Math.max(1, 11 - count);
   }
   canAdjustTax() {
+    if (this.transition.busy) return false;
     const s = this.state;
     if (s.over || s.pendingEvent || s.pendingWar) return false;
     if (s.people.length <= 100) return this.canAdjustPolicy();
@@ -52,6 +55,7 @@ class Controller {
     this.state.lastTaxChangeYear = this.state.year;
   }
   setOfficial(role, v) {
+    if (this.transition.busy) return;
     if (role === 'security') {
       if (this.state.over || this.state.pendingEvent || this.state.pendingWar || this.state.year < 5) return;
     } else {
@@ -82,33 +86,43 @@ class Controller {
       // 事件未决策则提示
       return;
     }
-    advance(this.state);
-    this.ui.render(this.state);
+    return this.transition.run(() => {
+      advance(this.state);
+    }, { year: this.state.year }).then(completed => {
+      if (completed) this.ui.render(this.state);
+    });
   }
 
   chooseEvent(idx) {
+    if (this.transition.busy) return;
     applyEventOption(this.state, idx);
     this.ui.render(this.state);
   }
 
   chooseWar(decision) {
+    if (this.transition.busy) return;
     applyWarDecision(this.state, decision);
     this.ui.render(this.state);
   }
 
   advanceToDecision() {
     if (this.state.over || this.state.pendingEvent || this.state.pendingWar) return;
-    for (let i = 0; i < 3; i++) {
-      advance(this.state);
-      this.ui.render(this.state);
-      if (this.state.over || this.state.pendingEvent || this.state.pendingWar) break;
-      if ((this.state.year - 1) % 3 === 0) break;
-    }
+    return this.transition.run(() => {
+      for (let i = 0; i < 3; i++) {
+        advance(this.state);
+        this.ui.renderLog(this.state);
+        if (this.state.over || this.state.pendingEvent || this.state.pendingWar) break;
+        if ((this.state.year - 1) % 3 === 0) break;
+      }
+    }, { year: this.state.year, fast: true }).then(completed => {
+      if (completed) this.ui.render(this.state);
+    });
   }
 
   estimateWar(plan) { return estimateWarCost(this.state, plan); }
 
   save() {
+    if (this.transition.busy) return;
     try {
       localStorage.setItem(SAVE_KEY, serialize(this.state));
       alert('已存档（槽位 1）');
@@ -118,6 +132,7 @@ class Controller {
   }
 
   load() {
+    if (this.transition.busy) return;
     const s = localStorage.getItem(SAVE_KEY);
     if (!s) { alert('暂无存档'); return; }
     try {
@@ -130,6 +145,7 @@ class Controller {
   }
 
   restart() {
+    if (this.transition.busy) return;
     this.state = newGame({ chapter: 1, seed: Date.now() });
     document.getElementById('log-list').innerHTML = '';
     this.ui.render(this.state);

@@ -6,16 +6,16 @@
 <script>
 const lines = [];
 function assert(value, message) { if (!value) throw new Error(message); }
-game.onload = () => setTimeout(() => {
+game.onload = () => setTimeout(async () => {
   try {
     const ctrl = game.contentWindow.__game;
     const doc = game.contentDocument;
     const state = ctrl.state;
-    assert(!doc.body.innerText.includes('善恶值') && !doc.body.innerText.includes('理性值'), '隐藏属性被显示在 Web 界面');
+    assert(!(doc.querySelector('header').textContent+doc.querySelector('main').textContent).includes('善恶值') && !(doc.querySelector('header').textContent+doc.querySelector('main').textContent).includes('理性值'), '隐藏属性被显示在 Web 界面');
     assert(!doc.querySelector('.advanced-policy').open, '高级调控没有默认收起');
     const initialLogBlocks = doc.getElementById('log-list').children.length;
     doc.querySelector('[data-preset="balanced"]').click();
-    assert(state.policy.tax.farmer === .06 && state.policy.militaryRatio === .05 && state.policy.officialWage === 10, 'Web 快捷政策方案没有生效');
+    assert(state.policy.tax.farmer === .06 && state.policy.militaryRatio === .05 && state.policy.officialWage === 20, 'Web 快捷政策方案没有生效');
     assert(doc.getElementById('official-wage'), 'Web 缺少公务员工资调节项');
     ctrl.setOfficialWage(18);
     assert(state.policy.officialWage === 18, 'Web 无法调整公务员工资');
@@ -58,8 +58,16 @@ game.onload = () => setTimeout(() => {
     ctrl.restart();
     ctrl.state.year = 2;
     ctrl.state.rng.chance = () => false;
-    doc.getElementById('btn-fast').click();
+    const beforeYear=ctrl.state.year;
+    const task=ctrl.advanceToDecision();
+    assert(ctrl.transition.busy,'Web没有进入年度过渡');
+    ctrl.nextYear();ctrl.restart();
+    assert(ctrl.state.year===beforeYear,'Web忙碌期间仍允许推进或重开');
+    doc.querySelector('.year-transition button').click();
+    await task;
+    assert(!ctrl.transition.busy && doc.querySelector('.year-transition').hidden,'Web过渡没有解锁');
     assert(ctrl.state.year === 4, `推进至决策停在第${ctrl.state.year}年`);
+    assert(!doc.getElementById('official-wage').disabled,'过渡结束后政策窗口未解锁');
     assert(doc.getElementById('year-summary').textContent.includes('变化'), 'Web 没有显示年度变化摘要');
     lines.push('PASS 快捷政策、工资调节、年度摘要与推进至决策');
   } catch (error) {

@@ -8,25 +8,36 @@ const lines = [];
 function assert(value, message) { if (!value) throw new Error(message); }
 function hidden(el) { return el.classList.contains('hidden'); }
 
-game.onload = () => setTimeout(() => {
+game.onload = () => setTimeout(async () => {
   try {
     const win = game.contentWindow;
     const doc = game.contentDocument;
     win.alert = () => {};
     const year = () => Number(doc.getElementById('year').textContent);
+    const step=async(id)=>{
+      const before=year();
+      doc.getElementById(id).click();
+      const overlay=doc.querySelector('.year-transition');
+      assert(!overlay.hidden,'年度过渡未显示');
+      doc.getElementById(id).click();
+      assert(year()===before,'过渡期间重复点击提前推进');
+      overlay.querySelector('button').click();
+      await new Promise(resolve=>win.setTimeout(resolve,0));
+      assert(overlay.hidden,'年度结算后过渡未关闭');
+    };
 
     assert(year() === 1, '单文件版没有完成初始化');
-    assert(!doc.body.innerText.includes('善恶值') && !doc.body.innerText.includes('理性值'), '隐藏属性被显示在单文件界面');
+    assert(!(doc.querySelector('header').textContent+doc.querySelector('main').textContent).includes('善恶值') && !(doc.querySelector('header').textContent+doc.querySelector('main').textContent).includes('理性值'), '隐藏属性被显示在单文件界面');
     assert(!doc.querySelector('details').open, '单文件版高级调控没有默认收起');
     doc.querySelector('[data-preset="balanced"]').click();
-    assert(win.eval('state.policy.tax.farmer===.06&&state.policy.militaryRatio===.05&&state.policy.officialWage===10'), '单文件版快捷政策没有生效');
+    assert(win.eval('state.policy.tax.farmer===.06&&state.policy.militaryRatio===.05&&state.policy.officialWage===20'), '单文件版快捷政策没有生效');
     assert(doc.getElementById('wg'), '单文件版缺少公务员工资调节项');
     assert(win.eval('Object.values(state.policy.officials).reduce((a,b)=>a+b,0)<=state.stats.byClass.official'), '单文件版快捷政策超配公务员');
-    doc.getElementById('next').click();
+    await step('next');
     assert(year() === 2, '点击下一年后年份没有推进');
     lines.push('PASS 下一年按钮可推进');
 
-    win.eval("state.pendingEvent=EVENTS.find(e=>e[0]==='harvest');render()");
+    win.eval("state.pendingEvent=EVENTS.find(e=>e[0]==='good_harvest');render()");
     const hiddenBefore = win.eval('({morality:state.morality,rationality:state.rationality})');
     const eventModal = doc.getElementById('eventModal');
     assert(!hidden(eventModal), '风调雨顺事件没有显示');
@@ -39,7 +50,7 @@ game.onload = () => setTimeout(() => {
     assert(win.eval('state.rationality') === hiddenBefore.rationality + 1, '单文件版没有记录理性值');
     assert(doc.getElementById('log').children.length === logBlocksBeforeChoice, '事件选择重复追加同一年度日志');
     const afterEvent = year();
-    doc.getElementById('next').click();
+    await step('next');
     assert(year() === afterEvent + 1, '处理事件后仍无法推进年份');
     lines.push('PASS 风调雨顺只结算一次并正常关闭');
 
@@ -59,13 +70,13 @@ game.onload = () => setTimeout(() => {
     assert(win.eval("Object.values(state.policy.tax).every(v=>v>=.12)"), '条约最低税率没有生效');
     lines.push('PASS 条约与最低税率生效');
 
-    win.eval("state.pendingWar=null;state.year=23;state.pendingEvent=EVENTS.find(e=>e[0]==='harvest');render()");
+    win.eval("state.pendingWar=null;state.year=23;state.pendingEvent=EVENTS.find(e=>e[0]==='good_harvest');render()");
     doc.getElementById('save').click();
     win.eval('state.year=99;state.pendingEvent=null;render()');
     doc.getElementById('load').click();
     assert(year() === 23, '存档读取后年份不正确');
     assert(win.eval('Boolean(state.treaty)'), '存档读取后条约丢失');
-    assert(win.eval("state.pendingEvent&&state.pendingEvent[0]==='harvest'"), '存档读取后待处理事件丢失');
+    assert(win.eval("state.pendingEvent&&state.pendingEvent[0]==='good_harvest'"), '存档读取后待处理事件丢失');
     assert(Number.isFinite(win.eval('state.morality')) && Number.isFinite(win.eval('state.rationality')), '存档读取后隐藏属性丢失');
     assert(Number.isFinite(win.eval('state.policy.officialWage')), '存档读取后公务员工资丢失');
     assert(!hidden(eventModal), '读档后待处理事件没有重新显示');
@@ -89,15 +100,16 @@ game.onload = () => setTimeout(() => {
         doc.getElementById('reset').click();
       }
       const before = year();
-      doc.getElementById('next').click();
+      await step('next');
       assert(year() === before + 1, `连续游玩第 ${turn + 1} 回合未推进`);
     }
     lines.push(`PASS 连续游玩60回合无阻塞（事件${events}次，战争${wars}次）`);
 
     doc.getElementById('reset').click();
-    win.eval('state.year=2;state.rng.c=()=>false;render()');
-    doc.getElementById('fast').click();
+    win.eval('state.year=2;state.rng.chance=()=>false;render()');
+    await step('fast');
     assert(year() === 4, `单文件版推进至决策停在第${year()}年`);
+    assert(!doc.getElementById('wg').disabled,'单文件版过渡结束后政策窗口未解锁');
     assert(doc.getElementById('yearDelta').textContent.includes('变化'), '单文件版没有年度变化摘要');
     lines.push('PASS 单文件版快捷政策、年度摘要与推进至决策');
   } catch (error) {

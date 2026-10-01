@@ -3,13 +3,48 @@ const app = getApp();
 
 Page({
   data: {
-    year: 1, pop: 0, treasury: 0, sat: 0, intel: 0, crim: 0,
+    year: 1, pop: 0, treasury: 0, sat: 0, intel: 0, crim: 0, score:0,
+    busy:false, progress:0, phase:'',
     chapterName: '', logs: [], event: null, war: null, over: null, classCount: {},
     conscription:20, supply:2, equipment:2, warEstimate:'', treatyText:'',
     yearSummary:'推进一年后显示年度变化',
   },
 
   onShow() { this.refresh(); },
+  onHide() { this.cancelTransition(); },
+  onUnload() { this.cancelTransition(); },
+  cancelTransition() {
+    clearInterval(this.transitionTimer);
+    this.finishTransition = null;
+    app.globalData.busy = false;
+    this.setData({busy:false});
+  },
+  runTransition(fast) {
+    const s=app.globalData.state;
+    if(app.globalData.busy||s.over||s.pendingEvent||s.pendingWar)return;
+    app.globalData.busy=true;
+    this.setData({busy:true,progress:0,phase:'春耕秋收 · 生产与商贸'});
+    const start=Date.now(),duration=fast?2000:1600;
+    this.finishTransition=()=>{
+      clearInterval(this.transitionTimer);
+      this.finishTransition=null;
+      try {
+        for(let i=0;i<(fast?3:1);i++) {
+          app.api.nextYear(s);
+          if(s.over||s.pendingEvent||s.pendingWar||(s.year-1)%3===0)break;
+        }
+        this.refresh();
+      } catch(error) {
+        wx.showToast({title:'年度结算失败，请重试',icon:'none'});
+      } finally { app.globalData.busy=false;this.setData({busy:false,progress:100}); }
+    };
+    this.transitionTimer=setInterval(()=>{
+      const progress=Math.min(100,Math.round((Date.now()-start)/duration*100));
+      this.setData({progress,phase:progress<35?'春耕秋收 · 生产与商贸':progress<70?'朝堂议事 · 财政与民生':'岁末回顾 · 人口与年度变化'});
+      if(progress>=100&&this.finishTransition)this.finishTransition();
+    },80);
+  },
+  onSkipTransition() { if(this.finishTransition)this.finishTransition(); },
 
   refresh() {
     const s = app.globalData.state;
@@ -17,6 +52,7 @@ Page({
       year: s.year, pop: s.stats.total, treasury: Math.round(s.treasury),
       sat: s.stats.avgSatisfaction, intel: s.stats.avgIntelligence,
       crim: s.stats.criminals, chapterName: s.chapterName,
+      score: s.score.total,
       classCount: s.stats.byClass, logs: s.log, event: s.pendingEvent, war:s.pendingWar, over: s.over,
       yearSummary: this.yearSummary(s.lastYearChanges),
       warEstimate: s.pendingWar ? this.warEstimate(s) : '',
@@ -31,11 +67,11 @@ Page({
       wx.showToast({ title: '请先完成当前决策', icon: 'none' });
       return;
     }
-    app.api.nextYear(s);
-    this.refresh();
+    this.runTransition(false);
   },
 
   onChooseEvent(e) {
+    if(app.globalData.busy)return;
     const idx = +e.currentTarget.dataset.idx;
     const s = app.globalData.state;
     app.api.applyEventOption(s, idx);
@@ -55,19 +91,14 @@ Page({
     this.setData({[e.currentTarget.dataset.key]:+e.detail.value},()=>this.refresh());
   },
   onChooseWar(e) {
+    if(app.globalData.busy)return;
     const action=e.currentTarget.dataset.action;
     app.api.applyWarDecision(app.globalData.state,action==='fight'?Object.assign({action},this.warPlan()):{action});
     this.refresh();
   },
 
   onAdvanceToDecision() {
-    const s=app.globalData.state;
-    if(s.over||s.pendingEvent||s.pendingWar)return;
-    for(let i=0;i<3;i++){
-      app.api.nextYear(s);
-      if(s.over||s.pendingEvent||s.pendingWar||(s.year-1)%3===0)break;
-    }
-    this.refresh();
+    this.runTransition(true);
   },
 
   yearSummary(changes) {
@@ -77,6 +108,7 @@ Page({
   },
 
   onSave() {
+    if(app.globalData.busy)return;
     app.api.save(app.globalData.state);
     wx.showToast({ title: '已存档' });
   },

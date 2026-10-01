@@ -3,10 +3,10 @@
  */
 import { CLASS, OFFICIAL_ROLE } from './config.js';
 
-/** 分配公务员岗位（按政策） */
+/** 分配成年公务员岗位（按政策） */
 export function assignRoles(people, policy, year = Infinity) {
   people.filter(p => p.klass === CLASS.OFFICIAL).forEach(p => { p.role = null; });
-  const officials = people.filter(p => p.klass === CLASS.OFFICIAL && !p.isCriminal);
+  const officials = people.filter(p => p.klass === CLASS.OFFICIAL && !p.isCriminal && p.age >= 18);
   // policy.officials = { tax, security, welfare, military, teacher }
   const target = policy.officials;
   let i = 0;
@@ -32,12 +32,13 @@ export function collectTax(people, policy, log) {
   for (const p of covered) {
     let tax = 0;
     if (p.klass === CLASS.FARMER) {
-      tax = Math.max(0, p.grain * policy.tax.farmer);
+      tax = Math.max(0, (p.yearIncome || 0) * policy.tax.farmer);
     } else if (p.klass === CLASS.WORKER) {
-      tax = Math.max(0, p.product * 3 * policy.tax.worker); // 估值
+      tax = Math.max(0, (p.yearIncome || 0) * policy.tax.worker);
     } else if (p.klass === CLASS.MERCHANT) {
-      tax = Math.max(0, p.grain * 0.1 * policy.tax.merchant);
+      tax = Math.max(0, (p.yearIncome || 0) * policy.tax.merchant);
     }
+    tax = Math.min(tax, Math.max(0, p.grain - 10));
     p.grain -= tax;
     total += tax;
   }
@@ -50,7 +51,7 @@ export function collectTax(people, policy, log) {
 
 /** 按政策给每名在职公务员发工资 */
 export function payWages(people, treasury, cfg, log, wagePerOfficial = cfg.govWage) {
-  const officials = people.filter(p => p.klass === CLASS.OFFICIAL && !p.isCriminal);
+  const officials = people.filter(p => p.klass === CLASS.OFFICIAL && !p.isCriminal && p.age >= 18);
   const wage = Math.max(0, Number(wagePerOfficial) || 0);
   let cost = 0, paid = 0;
   for (const o of officials) {

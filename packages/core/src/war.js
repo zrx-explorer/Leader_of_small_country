@@ -19,9 +19,9 @@ export function estimateWarCost(state, plan) {
 
 export function maybeStartWar(state) {
   if (state.year < 20 || state.pendingWar || state.treaty) return null;
-  if (state.lastWarYear != null && state.year - state.lastWarYear < 4) return null;
+  if (state.lastWarYear != null && state.year - state.lastWarYear < 10) return null;
   const eligible = eligibleConscripts(state.people).length;
-  if (eligible < 8 || !state.rng.chance(0.20)) return null;
+  if (eligible < 8 || !state.rng.chance(0.08)) return null;
   const enemyStrength = Math.max(6, Math.round(eligible * state.rng.uniform(0.18, 0.55)));
   const enemies = ['北境联盟', '河西公国', '东岭王国', '南海诸侯'];
   state.pendingWar = {

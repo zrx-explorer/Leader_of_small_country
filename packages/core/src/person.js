@@ -47,7 +47,12 @@ function clampInt(x) {
 export function seedPopulation(rng, init) {
   const people = [];
   for (const [klass, n] of Object.entries(init)) {
-    for (let i = 0; i < n; i++) people.push(createPerson(rng, klass));
+    for (let i = 0; i < n; i++) {
+      const person = createPerson(rng, klass);
+      // 小国开局采用均衡的性别结构，避免整阶级随机没有育龄伴侣。
+      person.gender = i % 2 ? 'female' : 'male';
+      people.push(person);
+    }
   }
   return people;
 }

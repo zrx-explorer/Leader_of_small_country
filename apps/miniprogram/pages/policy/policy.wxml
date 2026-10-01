@@ -26,7 +26,7 @@
   <view class="card">
     <view class="title">公务员配额</view>
     <view style="font-size:24rpx;color:#54667a;">人均年工资 {{officialWage}}</view>
-    <view class="official-help">实际支出 = 在职公务员人数 × 工资；原策划案参考值 60</view>
+    <view class="official-help">实际支出 = 在职成年公务员人数 × 工资；默认20覆盖基本生活</view>
     <slider min="0" max="100" step="1" value="{{officialWage}}" disabled="{{policyLocked}}" data-key="officialWage" bindchange="onSlider" activeColor="#c0392b" />
     <view style="font-size:24rpx;color:#54667a;">税务 <text class="help" data-role="tax" bindtap="toggleOfficialHelp">?</text> {{offTax}}</view>
     <view wx:if="{{helpRole == 'tax'}}" class="official-help">每人管辖100名纳税人｜开局解锁</view>
