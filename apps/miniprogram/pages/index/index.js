@@ -7,7 +7,7 @@ Page({
     busy:false, progress:0, phase:'',
     chapterName: '', logs: [], event: null, war: null, over: null, classCount: {},
     conscription:20, supply:2, equipment:2, warEstimate:'', treatyText:'',
-    yearSummary:'推进一年后显示年度变化',
+    yearSummary:'推进一年后显示年度变化', policyNotice:'',
   },
 
   onShow() { this.refresh(); },
@@ -55,6 +55,7 @@ Page({
       score: s.score.total,
       classCount: s.stats.byClass, logs: s.log, event: s.pendingEvent, war:s.pendingWar, over: s.over,
       yearSummary: this.yearSummary(s.lastYearChanges),
+      policyNotice: app.api.policyNotice(s),
       warEstimate: s.pendingWar ? this.warEstimate(s) : '',
       treatyText: s.pendingWar ? this.treatyText(s.pendingWar.offeredTreaty) : '',
     });

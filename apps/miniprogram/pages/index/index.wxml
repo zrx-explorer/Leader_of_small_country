@@ -16,6 +16,7 @@
       <view class="hud-item">公 <text class="v">{{classCount.official}}</text></view>
     </view>
     <view style="font-size:22rpx;color:#54667a;margin-top:16rpx;">{{yearSummary}}</view>
+    <view wx:if="{{policyNotice}}" style="font-size:22rpx;color:#9a6a22;margin-top:16rpx;">{{policyNotice}}</view>
   </view>
 
   <view wx:if="{{busy}}" class="year-transition">

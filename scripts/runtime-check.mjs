@@ -47,6 +47,13 @@ const compatible=engine.deserialize(JSON.stringify(oldSave));
 engine.nextYear(compatible);
 assert.equal(compatible.year,2,'Old save without RNG state must still advance');
 console.log('PASS old saves without RNG state do not enter a zero-state loop');
+const legacy=JSON.parse(engine.serialize(engine.newGame({seed:100})));
+legacy.policy.officialWage=10;
+const legacyRestored=engine.deserialize(JSON.stringify(legacy));
+assert.equal(legacyRestored.policy.officialWage,10,'Old policy must not be silently overwritten');
+assert(engine.policyNotice(legacyRestored).includes('旧存档'),'Old low wages need a clear explanation');
+assert.equal(engine.policyNotice(engine.newGame({seed:100})), '','Default policy must not show a false warning');
+console.log('PASS old low-wage saves remain intact with an actionable policy warning');
 
 const poor=engine.newGame({seed:3});
 poor.policy.tax={farmer:0,worker:0,merchant:0};poor.policy.officialWage=100;poor.treasury=0;

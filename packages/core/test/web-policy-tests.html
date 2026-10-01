@@ -68,6 +68,10 @@ game.onload = () => setTimeout(async () => {
     assert(!ctrl.transition.busy && doc.querySelector('.year-transition').hidden,'Web过渡没有解锁');
     assert(ctrl.state.year === 4, `推进至决策停在第${ctrl.state.year}年`);
     assert(!doc.getElementById('official-wage').disabled,'过渡结束后政策窗口未解锁');
+    ctrl.state.policy.officialWage=10;ctrl.ui.render(ctrl.state);
+    assert(!doc.getElementById('policy-health-notice').hidden,'Web低工资没有解释提示');
+    ctrl.setOfficialWage(20);ctrl.ui.render(ctrl.state);
+    assert(doc.getElementById('policy-health-notice').hidden,'恢复新版默认工资后提示未隐藏');
     assert(doc.getElementById('year-summary').textContent.includes('变化'), 'Web 没有显示年度变化摘要');
     lines.push('PASS 快捷政策、工资调节、年度摘要与推进至决策');
   } catch (error) {

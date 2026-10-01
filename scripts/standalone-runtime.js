@@ -12,7 +12,12 @@ const transition = createYearTransition();
 const EVENTS = GameCore.events.EVENTS.map(e => [e.id,e.title,e.desc,e.options.map(o => [o.label,o.apply,o.hiddenEffects]),e.condition,e.weight]);
 function person(r,k,age) { return GameCore.person.createPerson(r,k,age); }
 function rec() { GameCore.person.recordPersonHistory(state.people,state.year); }
-function stat() { state.stats=GameCore.person.aggregate(state.people);state.score=GameCore.score.governanceScore(state); }
+function stat() {
+  state.stats=GameCore.person.aggregate(state.people);state.score=GameCore.score.governanceScore(state);
+  let notice=document.getElementById('policy-health-notice');
+  if(!notice){notice=document.createElement('p');notice.id='policy-health-notice';notice.className='year-delta';notice.setAttribute('role','status');document.getElementById('yearDelta').after(notice);}
+  notice.textContent=GameCore.game.policyNotice(state);notice.hidden=!notice.textContent;
+}
 function newGame() { state=GameCore.game.newGame({seed:Date.now()});selectedId=state.people[0]?.id; }
 function loadStandaloneSave(saved) {
   const o=JSON.parse(saved);
@@ -33,13 +38,20 @@ function withCore(work) {
   finally { if(state.pendingEvent&&!Array.isArray(state.pendingEvent))state.pendingEvent=EVENTS.find(e=>e[0]===state.pendingEvent.id)||null; }
 }
 function stepYear() { withCore(()=>GameCore.game.nextYear(state)); }
+function appendYearLog() {
+  const container=document.getElementById('log'),key=state.log[0]||'year-'+state.year;
+  const block=document.createElement('div');block.dataset.logKey=key;
+  state.log.forEach((text,index)=>{const row=document.createElement('div');row.className=index?'line':'year';row.textContent=text;block.appendChild(row);});
+  if(container.firstElementChild?.dataset.logKey===key)container.firstElementChild.replaceWith(block);else container.prepend(block);
+  while(container.children.length>30)container.lastElementChild.remove();
+}
 function nextYear() {
   if(state.over||state.pendingEvent||state.pendingWar)return;
   return transition.run(()=>{stepYear();},{year:state.year}).then(completed=>{if(completed)render();});
 }
 function fastForward() {
   if(state.over||state.pendingEvent||state.pendingWar)return;
-  return transition.run(()=>{for(let i=0;i<3;i++){stepYear();if(state.over||state.pendingEvent||state.pendingWar||(state.year-1)%3===0)break;}},{year:state.year,fast:true}).then(completed=>{if(completed)render();});
+  return transition.run(()=>{for(let i=0;i<3;i++){stepYear();appendYearLog();if(state.over||state.pendingEvent||state.pendingWar||(state.year-1)%3===0)break;}},{year:state.year,fast:true}).then(completed=>{if(completed)render();});
 }
 function applyPreset(id) { if(!policyOpen())return;GameCore.game.applyPolicyPreset(state,id,{includeTax:taxOpen()});render(); }
 function warCost(plan) { return GameCore.game.estimateWarCost(state,plan); }

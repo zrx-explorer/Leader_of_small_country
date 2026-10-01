@@ -133,6 +133,7 @@ node scripts/sync-runtime.mjs             # 从共享核心生成小程序和单
 node scripts/balance-check.mjs --assert   # 默认政策，40个开局经营120年
 node scripts/balance-check.mjs --peaceful --assert  # 隔离事件和战争，验证基础经营
 node scripts/balance-check.mjs --fight --assert     # 标准出兵策略
+node scripts/balance-check.mjs --seeds 100 --years 150 --mixed --assert  # 更广的真实开局复核
 node scripts/runtime-check.mjs            # 三端一致性、存档、小程序防重复与取消
 python -m http.server 8000                # 在另一终端启动本地服务
 node scripts/browser-check.mjs            # 页面、事件、战争、进度、移动布局及离线测试

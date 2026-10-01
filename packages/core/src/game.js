@@ -158,6 +158,13 @@ export function applyWarDecision(state, decision) {
 
 export { estimateWarCost, treatyTaxFloor };
 
+/** 解释低工资造成的积蓄下降，不擅自覆盖玩家或旧存档的政策。 */
+export function policyNotice(state) {
+  const wage = Number(state.policy.officialWage);
+  if (!Number.isFinite(wage) || wage >= DEFAULT_CONFIG.govWage) return '';
+  return `当前人均年工资 ${wage}，低于新版默认 ${DEFAULT_CONFIG.govWage}。公务员可能持续消耗积蓄；可在政策窗口调整工资。旧存档会保留原政策，不会自动改成新版默认值。`;
+}
+
 /** 年度随机波动：提供轻微差异，避免相同操作每局完全一致 */
 function rollYearModifiers(state, log) {
   const farm = state.rng.normal(1, 0.08);

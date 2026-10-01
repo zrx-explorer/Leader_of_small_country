@@ -4,6 +4,7 @@
 import {
   drawClassPie, drawHistory, formatCompactNumber, yearAtCanvasX,
 } from './charts.js';
+import { policyNotice } from '../../../packages/core/src/game.js';
 
 const CLASS_LABEL = { farmer: '农民', worker: '工人', merchant: '商人', official: '公务员' };
 const CLASS_COLOR = { farmer: '#2ecc71', worker: '#3498db', merchant: '#d4a017', official: '#8e44ad' };
@@ -96,6 +97,16 @@ export class UI {
     document.getElementById('hud-crim').textContent = state.stats.criminals;
     document.getElementById('hud-score').textContent = state.score.total;
     document.getElementById('year-summary').textContent = yearSummaryText(state.lastYearChanges);
+    let notice = document.getElementById('policy-health-notice');
+    if (!notice) {
+      notice = document.createElement('p');
+      notice.id = 'policy-health-notice';
+      notice.className = 'year-summary';
+      notice.setAttribute('role', 'status');
+      document.getElementById('year-summary').after(notice);
+    }
+    notice.textContent = policyNotice(state);
+    notice.hidden = !notice.textContent;
 
     // 章节进度
     document.getElementById('chapter-tip').textContent =

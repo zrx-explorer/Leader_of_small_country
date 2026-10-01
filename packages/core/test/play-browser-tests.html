@@ -110,6 +110,12 @@ game.onload = () => setTimeout(async () => {
     await step('fast');
     assert(year() === 4, `单文件版推进至决策停在第${year()}年`);
     assert(!doc.getElementById('wg').disabled,'单文件版过渡结束后政策窗口未解锁');
+    const yearLogs=doc.getElementById('log').textContent;
+    assert(yearLogs.includes('第 2 年')&&yearLogs.includes('第 3 年'),'快进丢失了中间年份的日志');
+    win.eval('state.policy.officialWage=10;render()');
+    assert(!doc.getElementById('policy-health-notice').hidden,'单文件旧低工资没有解释提示');
+    win.eval('state.policy.officialWage=20;render()');
+    assert(doc.getElementById('policy-health-notice').hidden,'单文件正常工资仍显示警告');
     assert(doc.getElementById('yearDelta').textContent.includes('变化'), '单文件版没有年度变化摘要');
     lines.push('PASS 单文件版快捷政策、年度摘要与推进至决策');
   } catch (error) {
