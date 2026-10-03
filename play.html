@@ -22,6 +22,26 @@
     .presetbox{border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:10px;background:#fffdf7}.presetbox b{display:block;color:var(--red);font-size:12px;margin-bottom:6px}.presetgrid{display:grid;gap:6px}.presetgrid button{text-align:left}.capacity,.year-delta{font-size:11px;color:var(--soft);margin-top:7px}.capacity.over{color:var(--red);font-weight:700}details summary{cursor:pointer;color:var(--soft);font-size:12px;margin:8px 0}.year-delta{padding:5px 9px;background:#f6efe2;border-radius:12px}
     @media(max-width:920px){main{grid-template-columns:1fr}.charts,.people-body{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}.detail{border-left:0;border-top:1px dashed var(--line);padding-left:0;padding-top:8px}}
   </style>
+<!-- BEGIN PRESENTATION CSS -->
+<style>
+/* 橙色喜讯、黑色危机、灰色中性；文字/符号同时传达分类。 */
+.event-good{color:#b45309}.event-bad{color:#202020}.event-neutral{color:#666666}
+.event-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;font-weight:700;margin:8px 0}
+.pacing-note{font-size:12px;color:#666;line-height:1.6;margin:8px 0 12px}
+.event-badge{display:inline-block;color:var(--event-color,#202020);border:1px solid currentColor;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;margin-bottom:10px}
+#event-modal .modal-card,#war-modal .modal-card,#eventModal .box,#warModal .box{border-top:5px solid var(--event-color,#202020)}
+#event-modal h3,#war-modal h3,#eventModal h2,#warModal h2{color:var(--event-color,#202020)}
+.population-overview{grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;max-height:none;overflow:visible}
+.population-group{padding:12px;background:#f5f1e9;border:1px solid #e3dac9;border-radius:8px;font-size:12px;min-width:0}
+.population-group h4{font-size:14px;color:#263645;margin:0 0 10px}.population-group h4 b{display:block;font-size:20px;margin-top:4px}
+.population-group p{margin:4px 0;color:#54667a;overflow-wrap:anywhere}
+.aggregate-mode{grid-template-columns:minmax(0,1fr)}
+.aggregate-mode>.person-detail,.aggregate-mode>.detail{border-left:0;border-top:1px dashed #dfd3bd;padding:10px 0 0;line-height:1.7;max-height:none}
+.panel-vis>.people-board{flex-shrink:0}
+.footer-bar{flex-wrap:wrap}.footer-bar>.btn{white-space:nowrap}
+
+</style>
+<!-- END PRESENTATION CSS -->
 </head>
 <body>
   <header>
@@ -56,11 +76,11 @@
     </section>
     <section class="panel">
       <h2>国家概览</h2>
-      <div class="charts"><div class="chart"><canvas id="pie" width="280" height="220"></canvas></div><div class="chart"><canvas id="hist" width="560" height="220"></canvas></div></div>
+      <div class="charts"><div class="chart"><canvas id="pie" width="280" height="220"></canvas></div><div class="chart"><div class="pacing-note">历史曲线 · 最近240年</div><canvas id="hist" width="560" height="220"></canvas></div></div>
       <div class="controls"><button id="next" class="primary">下一年</button><button id="fast">推进至决策</button><span id="tip">目标：撑过 30 年后进入持续经营。政策每 3 年开放一次。</span></div><div id="yearDelta" class="year-delta">推进一年后显示年度变化</div>
       <div class="people"><div class="people-head"><b>国民个体</b><span>点击头像查看阶级与满意度变化</span></div><div class="people-body"><div id="peopleGrid" class="people-grid"></div><div id="personDetail" class="detail">选择一位国民查看履历</div></div></div>
     </section>
-    <section class="panel"><h2>朝堂日志</h2><div id="log" class="log"></div></section>
+    <section class="panel"><h2>朝堂日志</h2><div class="event-legend" aria-label="事件颜色说明"><span class="event-good">✦ 好事件</span><span class="event-bad">▲ 坏事件</span><span class="event-neutral">◆ 中性事件</span></div><p class="pacing-note">每连续 3 次非好事件后，下次普通事件必为好事件。战争优先处理。</p><div id="log" class="log"></div></section>
   </main>
   <div id="eventModal" class="modal hidden"><div class="box"><h2 id="et"></h2><p id="ed"></p><div id="eo" class="opts"></div></div></div>
   <div id="warModal" class="modal hidden"><div class="box"><h2 id="warTitle"></h2><p id="warDesc"></p><div class="wargrid"><label>征兵<select id="warRate"><option value=".05">5%</option><option value=".1">10%</option><option value=".2" selected>20%</option><option value=".3">30%</option><option value=".4">40%</option><option value=".5">50%</option></select></label><label>补给<select id="warSupply"><option value="1">基本</option><option value="2" selected>充足</option><option value="3">奢足</option></select></label><label>装备<select id="warEquip"><option value="1">简陋</option><option value="2" selected>标准</option><option value="3">精良</option></select></label></div><div id="warEstimate" class="warinfo"></div><div id="warTreaty" class="warinfo"></div><div class="opts"><button id="warFight" class="primary">出兵作战</button><button id="warSign">签订条约</button><button id="warSurrender">直接投降赔款</button></div></div></div>
@@ -139,7 +159,11 @@ const DEFAULT_CONFIG = Object.freeze({
   deathStartAge: 50,
   deathHardCap: 95,
   // 性能
-  bucketModeThreshold: 300, // UI 超过该值只渲染部分个体
+  bucketModeThreshold: 300, // 超过阈值仅显示阶层汇总，不记录个人履历
+  personHistoryLimit: 12,
+  historyLimit: 240,
+  storyHookLimit: 30,
+  positiveEventInterval: 4, // 连续 3 次非好事件后，下次普通事件必为好事件
 });
 
 const INITIAL_POPULATION = {
@@ -216,14 +240,14 @@ GameCore.person = (() => {
 /**
  * 个体 / 阶级群体定义
  */
-const { CLASS } = GameCore.config;
+const { CLASS, DEFAULT_CONFIG } = GameCore.config;
 
 let _uid = 0;
 const nextId = () => ++_uid;
 
 /** 读档或事件新增人口后，将后续出生编号推进到当前最大值之后。 */
 function syncNextId(people) {
-  _uid = Math.max(_uid, ...people.map(p => Number(p.id) || 0));
+  for (const p of people) _uid = Math.max(_uid, Number(p.id) || 0);
 }
 
 const SURNAMES = '赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹'.split('');
@@ -319,7 +343,23 @@ function aggregate(people) {
   return stats;
 }
 
-function recordPersonHistory(people, year) {
+function isAggregateMode(people, cfg = DEFAULT_CONFIG) {
+  return people.length > (cfg.bucketModeThreshold ?? DEFAULT_CONFIG.bucketModeThreshold);
+}
+
+/** 不改变个人模拟数据；仅释放 UI 不再使用的履历。 */
+function trimPersonHistory(people, cfg = DEFAULT_CONFIG) {
+  const limit = isAggregateMode(people, cfg) ? 0 : (cfg.personHistoryLimit ?? DEFAULT_CONFIG.personHistoryLimit);
+  for (const p of people) {
+    if (!Array.isArray(p.history)) p.history = [];
+    if (p.history.length > limit) p.history.splice(0, p.history.length - limit);
+  }
+}
+
+function recordPersonHistory(people, year, cfg = DEFAULT_CONFIG) {
+  trimPersonHistory(people, cfg);
+  if (isAggregateMode(people, cfg)) return;
+  const limit = cfg.personHistoryLimit ?? DEFAULT_CONFIG.personHistoryLimit;
   for (const p of people) {
     if (!p.name) p.name = `无名${p.id}`;
     if (!Array.isArray(p.history)) p.history = [];
@@ -331,11 +371,11 @@ function recordPersonHistory(people, year) {
     };
     if (!last || last.year !== year) p.history.push(entry);
     else Object.assign(last, entry);
-    if (p.history.length > 120) p.history.shift();
+    if (p.history.length > limit) p.history.splice(0, p.history.length - limit);
   }
 }
 
-return { nextId, syncNextId, createPerson, seedPopulation, aggregate, recordPersonHistory };
+return { nextId, syncNextId, createPerson, seedPopulation, aggregate, isAggregateMode, trimPersonHistory, recordPersonHistory };
 })();
 GameCore.economy = (() => {
 /**
@@ -382,10 +422,40 @@ function trade(people, cfg, rng, log) {
 }
 
 // 逐笔成交同时结算，商人不再因先付进货款而陷入流动性死锁。
+// 最小堆保持「优先向最缺粮工人采购」，同粮食时沿用人口顺序。
+// 每笔只修复堆顶 O(log n)，避免反复分配数组并排序所有工人。
+class SellerQueue {
+  constructor(workers, reserve) {
+    this.reserve = reserve;
+    this.items = workers.map((person, order) => ({ person, order })).filter(x => x.person.product > reserve);
+    for (let i = Math.floor(this.items.length / 2) - 1; i >= 0; i--) this.sift(i);
+  }
+  before(a, b) { return a.person.grain < b.person.grain || (a.person.grain === b.person.grain && a.order < b.order); }
+  sift(i) {
+    const h = this.items;
+    while (i * 2 + 1 < h.length) {
+      let child = i * 2 + 1;
+      if (child + 1 < h.length && this.before(h[child + 1], h[child])) child++;
+      if (!this.before(h[child], h[i])) break;
+      [h[i], h[child]] = [h[child], h[i]];
+      i = child;
+    }
+  }
+  get first() { return this.items[0]?.person; }
+  update() {
+    if (this.first.product <= this.reserve) {
+      const last = this.items.pop();
+      if (this.items.length) this.items[0] = last;
+    }
+    this.sift(0);
+  }
+}
+
 function settleMarket(people, cfg, log) {
   const workers = people.filter(p => p.klass === CLASS.WORKER && !p.isCriminal && p.age >= 16);
   const merchants = people.filter(p => p.klass === CLASS.MERCHANT && !p.isCriminal && p.age >= 16);
   if (!workers.length) return;
+  const sellers = new SellerQueue(workers, cfg.productReserveNeed);
   const wholesale = 3 * (cfg.yearlyPriceMultiplier ?? 1);
   let sold = 0, profit = 0, cursor = 0;
   for (const buyer of people.filter(p => !p.isCriminal && p.klass !== CLASS.WORKER)) {
@@ -393,7 +463,7 @@ function settleMarket(people, cfg, log) {
     let demand = Math.max(0, need + cfg.productReserveNeed - buyer.product);
     const price = buyer.klass === CLASS.FARMER ? (wholesale + 1) * 1.2 : wholesale * 1.1;
     while (demand > 0.001) {
-      const worker = workers.filter(p => p.product > cfg.productReserveNeed).sort((a,b) => a.grain - b.grain)[0];
+      const worker = sellers.first;
       if (!worker) break;
       const merchant = merchants.length ? merchants[cursor++ % merchants.length] : null;
       const unitPrice = merchant && merchant !== buyer ? price : wholesale;
@@ -413,6 +483,7 @@ function settleMarket(people, cfg, log) {
       }
       sold += quantity;
       demand -= quantity;
+      sellers.update();
     }
   }
   if (log) log.push(`商贸成交 ${sold.toFixed(1)} 件（商人毛利 ${profit.toFixed(1)}${merchants.length ? '' : '，集市直接交易'}）`);
@@ -420,13 +491,21 @@ function settleMarket(people, cfg, log) {
 
 /** 家庭赡养先转移真实存粮，不凭空产生资源；未成年人按半份口粮。 */
 function consume(people, cfg) {
+  const reserve = cfg.grainReserveNeed + cfg.grainNeed;
+  const adults = people.filter(p => !p.isCriminal && p.age >= 16 && p.grain > reserve);
   for (const child of people.filter(p => p.age < 16 && !p.isCriminal)) {
     const needed = Math.max(0, cfg.grainReserveNeed + cfg.grainNeed / 2 - child.grain);
     let left = needed;
-    const adults = people.filter(p => !p.isCriminal && p.age >= 16 && p.grain > cfg.grainReserveNeed + cfg.grainNeed)
-      .sort((a,b) => (b.klass === child.klass) - (a.klass === child.klass) || b.grain - a.grain);
-    for (const adult of adults) {
-      const transfer = Math.min(left, adult.grain - cfg.grainReserveNeed - cfg.grainNeed);
+    while (left > 0) {
+      // 只寻找本次捐粮人；保持同阶级优先、余粮最多优先及稳定同值顺序。
+      let adult = null;
+      for (const candidate of adults) {
+        if (candidate.grain <= reserve) continue;
+        if (!adult || ((candidate.klass === child.klass) && adult.klass !== child.klass)
+          || ((candidate.klass === child.klass) === (adult.klass === child.klass) && candidate.grain > adult.grain)) adult = candidate;
+      }
+      if (!adult) break;
+      const transfer = Math.min(left, adult.grain - reserve);
       adult.grain -= transfer; child.grain += transfer; left -= transfer;
       if (left <= 0) break;
     }
@@ -762,9 +841,29 @@ GameCore.events = (() => {
  * 每个选项都必须同时声明可见收益、可见代价，以及隐藏的善恶值和理性值变化。
  */
 const { syncNextId } = GameCore.person;
+const { DEFAULT_CONFIG } = GameCore.config;
+
+const EVENT_PRESENTATION = Object.freeze({
+  good: Object.freeze({ label: '好事件', color: '#b45309', symbol: '✦' }),
+  bad: Object.freeze({ label: '坏事件', color: '#202020', symbol: '▲' }),
+  neutral: Object.freeze({ label: '中性事件', color: '#666666', symbol: '◆' }),
+});
+
+const CATEGORIES = {
+  drought: 'bad', merchant_caravan: 'good', scholar: 'neutral', good_harvest: 'good',
+  rebellion_warning: 'bad', noble_invite: 'neutral', inflation: 'bad', farmer_petition: 'bad',
+  criminal_sentencing: 'neutral', corrupt_official: 'bad', workshop_dispute: 'bad',
+  refugees_at_gate: 'neutral', canal_dispute: 'bad', celestial_omen: 'neutral',
+  corruption_aftershock: 'bad', merchant_backlash: 'bad', refugee_integration: 'neutral',
+  reformed_prisoner_review: 'neutral',
+};
 
 function option(label, benefit, cost, hiddenEffects, apply, storyHook) {
   return { label, tradeoffs: { benefit, cost }, hiddenEffects, apply, storyHook };
+}
+
+function eventLogCategory(text) {
+  return Object.keys(EVENT_PRESENTATION).find(key => String(text).startsWith(`📜【${EVENT_PRESENTATION[key].label}】`)) || '';
 }
 
 function citizens(state, klass) {
@@ -832,6 +931,7 @@ function applyPlague(state, plague, treatmentFactor = 1) {
 function plagueEvent(plague) {
   return {
     id: `plague_${plague.id}`,
+    category: 'bad',
     title: `瘟疫：${plague.name}`,
     desc: plague.desc,
     weight: 1,
@@ -862,6 +962,26 @@ const PLAGUES = [
 ];
 
 const EVENTS = [
+  {
+    id: 'village_festival', category: 'good', title: '乡里丰年会', weight: 5,
+    desc: '百姓用农闲筹办丰年会，既可互助补粮，也可兴办集市。朝廷不必额外出资。',
+    condition: s => s.year > 1 && s.people.length > 0,
+    options: [
+      option('鼓励邻里互助（每人粮食 +2、满意 +1；放弃集市税收）', '民间新收成用于补粮与互助', '放弃本次 80 集市税收', { morality: 2, rationality: -1 }, s => {
+        citizens(s).forEach(p => { p.grain += 2; p.satisfaction += 1; });
+      }),
+      option('开放节庆集市（国库 +80；放弃本次补粮与满意奖励）', '外地客商带来额外税收 80', '放弃本次每人粮食 2 与满意 1', { morality: -1, rationality: 2 }, s => { s.treasury += 80; }),
+    ],
+  },
+  {
+    id: 'craftsman_gift', category: 'good', title: '巧匠献礼', weight: 5,
+    desc: '工匠试制出一批余货，愿将成果用于改善百姓生活，或售予外地客商。',
+    condition: s => s.year > 2 && s.stats.byClass.worker >= 2,
+    options: [
+      option('分发新器具（每人产品 +1；放弃售货收入）', '试制产品改善生活', '放弃本次 100 售货收入', { morality: 2, rationality: 1 }, s => { citizens(s).forEach(p => { p.product += 1; }); }),
+      option('出售余货充库（国库 +100；放弃本次器具分发）', '外销产品增加国库 100', '放弃本次每人产品 1', { morality: -1, rationality: 2 }, s => { s.treasury += 100; }),
+    ],
+  },
   {
     id: 'drought', title: '蝗灾来袭', desc: '今春蝗虫遮天蔽日，农田损失惨重。', weight: 10,
     condition: s => s.year >= 2 && s.year % 7 === 0,
@@ -1088,14 +1208,22 @@ const EVENTS = [
 ];
 
 /** 选取一个本年度事件，返回 null 表示无事件。 */
+// 分类描述局势，不代表对玩家选项的道德评价。
+for (const event of EVENTS) event.category = event.category || CATEGORIES[event.id];
+
 function rollEvent(state) {
+  if (state.pendingEvent || state.pendingWar || state.over) return null;
   const candidates = EVENTS.filter(e => {
     try { return e.condition(state); } catch { return false; }
   });
   if (!candidates.length || !state.rng.chance(0.55)) return null;
   const recent = Array.isArray(state.recentEventIds) ? state.recentEventIds.slice(-2) : [];
-  const freshCandidates = candidates.filter(e => !recent.includes(e.id));
-  const pool = freshCandidates.length ? freshCandidates : candidates;
+  const interval = state.cfg?.positiveEventInterval ?? DEFAULT_CONFIG.positiveEventInterval;
+  const positiveDue = (state.eventsSincePositive || 0) >= interval - 1;
+  const positives = positiveDue ? candidates.filter(e => e.category === 'good') : [];
+  const pacedCandidates = positives.length ? positives : candidates;
+  const freshCandidates = pacedCandidates.filter(e => !recent.includes(e.id));
+  const pool = freshCandidates.length ? freshCandidates : pacedCandidates;
   const total = pool.reduce((sum, event) => sum + event.weight, 0);
   let roll = state.rng.uniform(0, total);
   let selected = pool[pool.length - 1];
@@ -1104,10 +1232,11 @@ function rollEvent(state) {
     if (roll <= 0) { selected = event; break; }
   }
   state.recentEventIds = [...recent, selected.id].slice(-2);
+  state.eventsSincePositive = selected.category === 'good' ? 0 : Math.min(interval - 1, (state.eventsSincePositive || 0) + 1);
   return selected;
 }
 
-return { EVENTS, rollEvent };
+return { EVENT_PRESENTATION, eventLogCategory, EVENTS, rollEvent };
 })();
 GameCore.war = (() => {
 const { OFFICIAL_ROLE } = GameCore.config;
@@ -1295,7 +1424,7 @@ GameCore.game = (() => {
  */
 const { DEFAULT_CONFIG, CHAPTERS, CLASS } = GameCore.config;
 const { RNG } = GameCore.math;
-const { seedPopulation, aggregate, recordPersonHistory, syncNextId } = GameCore.person;
+const { seedPopulation, aggregate, recordPersonHistory, trimPersonHistory, syncNextId } = GameCore.person;
 const { farmersProduce, workersProduce, trade, consume } = GameCore.economy;
 const {
   updateSatisfaction, judgeStatus, enforceSecurity, plunder,
@@ -1304,7 +1433,7 @@ const {
 const {
   assignRoles, collectTax, payWages, educate, military, securityCount,
 } = GameCore.government;
-const { EVENTS, rollEvent } = GameCore.events;
+const { EVENTS, rollEvent, EVENT_PRESENTATION, eventLogCategory } = GameCore.events;
 const { governanceScore } = GameCore.score;
 const {
   maybeStartWar, applyWarDecision: resolveWar, estimateWarCost,
@@ -1412,12 +1541,13 @@ function newGame({ chapter = 1, seed = Date.now() } = {}) {
     lastTaxChangeYear: null,
     lastYearChanges: null,
     recentEventIds: [],
+    eventsSincePositive: 0,
     storyHooks: [],
     modifiers: {},
   };
   state.stats = aggregate(people);
   state.score = governanceScore(state);
-  recordPersonHistory(state.people, state.year);
+  recordPersonHistory(state.people, state.year, state.cfg);
   return state;
 }
 
@@ -1426,7 +1556,7 @@ function applyEventOption(state, optionIndex) {
   const ev = state.pendingEvent;
   if (!ev) return;
   const opt = ev.options[optionIndex] || ev.options[0];
-  state.log.push(`📜 事件【${ev.title}】→ ${opt.label}`);
+  state.log.push(`📜【${EVENT_PRESENTATION[ev.category || 'neutral'].label}】事件【${ev.title}】→ ${opt.label}`);
   opt.apply(state);
   const hiddenEffects = opt.hiddenEffects || {};
   const moralityDelta = Number(hiddenEffects.morality);
@@ -1438,6 +1568,7 @@ function applyEventOption(state, optionIndex) {
   state.stats = aggregate(state.people);
   state.score = governanceScore(state);
   if (opt.storyHook) state.storyHooks.push(opt.storyHook);
+  trimHistory(state);
   state.pendingEvent = null;
 }
 
@@ -1554,8 +1685,9 @@ function nextYear(state) {
     avgSatisfaction: +(state.stats.avgSatisfaction - before.avgSatisfaction).toFixed(2),
     criminals: state.stats.criminals - before.criminals,
   };
-  recordPersonHistory(state.people, state.year);
+  recordPersonHistory(state.people, state.year, state.cfg);
   state.history.push(snapshot(state));
+  trimHistory(state);
 
   // ⑫ 胜负判定
   judgeOutcome(state);
@@ -1631,8 +1763,18 @@ function judgeOutcome(s) {
   }
 }
 
-/** 序列化存档（不含 RNG 内部状态保留 seed 即可） */
+/** 仅保留实际会被界面使用的滚动记录，读档时也清理旧版超长历史。 */
+function trimHistory(s) {
+  trimPersonHistory(s.people, s.cfg);
+  if (s.history.length > s.cfg.historyLimit) s.history.splice(0, s.history.length - s.cfg.historyLimit);
+  if (s.storyHooks.length > s.cfg.storyHookLimit) s.storyHooks.splice(0, s.storyHooks.length - s.cfg.storyHookLimit);
+  if (s.log.length > 100) s.log.splice(1, s.log.length - 100);
+  if (s.warHistory.length > 40) s.warHistory.splice(0, s.warHistory.length - 40);
+}
+
+/** 序列化存档，保留 RNG 状态与事件节奏。 */
 function serialize(s) {
+  trimHistory(s);
   return JSON.stringify({
     year: s.year, chapter: s.chapter, seed: s.seed,
     treasury: s.treasury, morality: s.morality, rationality: s.rationality,
@@ -1641,6 +1783,7 @@ function serialize(s) {
     storyHooks: s.storyHooks, modifiers: s.modifiers,
     lastTaxChangeYear: s.lastTaxChangeYear,
     lastYearChanges: s.lastYearChanges, recentEventIds: s.recentEventIds,
+    eventsSincePositive: s.eventsSincePositive,
     pendingEventId: s.pendingEvent?.id || null,
     pendingWar: s.pendingWar, treaty: s.treaty,
     lastWarYear: s.lastWarYear, warHistory: s.warHistory,
@@ -1669,6 +1812,8 @@ function deserialize(json) {
   s.lastTaxChangeYear = o.lastTaxChangeYear ?? null;
   s.lastYearChanges = o.lastYearChanges || null;
   s.recentEventIds = Array.isArray(o.recentEventIds) ? o.recentEventIds.slice(-2) : [];
+  s.eventsSincePositive = Number.isFinite(o.eventsSincePositive)
+    ? Math.max(0, Math.min(s.cfg.positiveEventInterval - 1, Math.floor(o.eventsSincePositive))) : 0;
   s.pendingEvent = o.pendingEventId ? (EVENTS.find(e => e.id === o.pendingEventId) || null) : null;
   s.pendingWar = o.pendingWar || null; s.treaty = o.treaty || null;
   s.lastWarYear = o.lastWarYear ?? null; s.warHistory = o.warHistory || [];
@@ -1679,12 +1824,13 @@ function deserialize(json) {
   s.consecutiveLowSatYears = o.consecutiveLowSatYears || 0;
   s.stats = aggregate(s.people);
   s.score = governanceScore(s);
+  trimHistory(s);
   return s;
 }
 
 
 
-return { POLICY_PRESETS, applyPolicyPreset, newGame, applyEventOption, applyWarDecision, policyNotice, nextYear, serialize, deserialize, estimateWarCost, treatyTaxFloor, CHAPTERS, CLASS, DEFAULT_CONFIG };
+return { POLICY_PRESETS, applyPolicyPreset, newGame, applyEventOption, applyWarDecision, policyNotice, nextYear, serialize, deserialize, estimateWarCost, treatyTaxFloor, EVENT_PRESENTATION, eventLogCategory, CHAPTERS, CLASS, DEFAULT_CONFIG };
 })();
 /** 短暂的年度流转过渡；快进整批只等待一次，可主动跳过动画。 */
 function createYearTransition() {
@@ -1751,7 +1897,7 @@ function createYearTransition() {
   <script>
 // BEGIN STANDALONE ADAPTER
 // 单文件界面的薄适配层；年度模拟、事件、战争与存档都使用共享核心。
-const C = { ...GameCore.config.DEFAULT_CONFIG, renderLimit: 300 };
+const C = { ...GameCore.config.DEFAULT_CONFIG };
 const cls = ['farmer','worker','merchant','official'];
 const colors = { farmer:'#2f9d63',worker:'#2f80c9',merchant:'#c49321',official:'#7d4ca0' };
 const names = { farmer:'农民',worker:'工人',merchant:'商人',official:'公务员' };
@@ -1761,6 +1907,8 @@ const clamp = GameCore.math.clamp;
 const compact = n => { n=Number(n)||0; const a=Math.abs(n);return a>=1e6?(n/1e6).toFixed(1)+'M':a>=1e4?(n/1e4).toFixed(1)+'万':a>=1e3?(n/1e3).toFixed(1)+'K':String(Math.round(n)); };
 let uid=0,state,selectedId=null,chartView={start:null,end:null,hover:null};
 const transition = createYearTransition();
+const warBadge=document.createElement('span');warBadge.className='event-badge';warBadge.textContent='▲ 坏事件 · 战争';
+document.querySelector('#warModal .box').prepend(warBadge);
 const EVENTS = GameCore.events.EVENTS.map(e => [e.id,e.title,e.desc,e.options.map(o => [o.label,o.apply,o.hiddenEffects]),e.condition,e.weight]);
 function person(r,k,age) { return GameCore.person.createPerson(r,k,age); }
 function rec() { GameCore.person.recordPersonHistory(state.people,state.year); }
@@ -1793,7 +1941,7 @@ function stepYear() { withCore(()=>GameCore.game.nextYear(state)); }
 function appendYearLog() {
   const container=document.getElementById('log'),key=state.log[0]||'year-'+state.year;
   const block=document.createElement('div');block.dataset.logKey=key;
-  state.log.forEach((text,index)=>{const row=document.createElement('div');row.className=index?'line':'year';row.textContent=text;block.appendChild(row);});
+  state.log.forEach((text,index)=>{const row=document.createElement('div');row.className=index?'line event-'+GameCore.events.eventLogCategory(text):'year';row.textContent=text;block.appendChild(row);});
   if(container.firstElementChild?.dataset.logKey===key)container.firstElementChild.replaceWith(block);else container.prepend(block);
   while(container.children.length>30)container.lastElementChild.remove();
 }
@@ -1813,13 +1961,53 @@ function warPlan(){return{conscriptionRate:+warRate.value,supplyLevel:+warSupply
 function updateWarEstimate(){if(!state.pendingWar)return;const c=warCost(warPlan());warEstimate.textContent='预计征兵'+c.troops+'人，每人费用'+c.perTroop+'，总投入'+c.total;}
 function showWar(){const w=state.pendingWar,t=w.offeredTreaty;warTitle.textContent='⚔ '+w.enemyName+'入侵';warDesc.textContent='敌军强度'+w.enemyStrength+'，可征召'+w.eligible+'名适龄公民';warTreaty.textContent='条约：立即赔款'+t.upfront+'，持续'+t.duration+'年，每年固定'+t.annualFlat+(t.taxShare?'，另付税收'+Math.round(t.taxShare*100)+'%，税率不低于'+Math.round(t.minTaxRate*100)+'%':'，无税率条款');updateWarEstimate();warModal.classList.remove('hidden');}
 function rollEvent(){return withCore(()=>{const e=GameCore.events.rollEvent(state);return e?EVENTS.find(x=>x[0]===e.id):null;});}
+
+function renderPeople() {
+  const grouped=GameCore.person.isAggregateMode(state.people,state.cfg);
+  peopleGrid.classList.toggle('population-overview',grouped);
+  peopleGrid.parentElement.classList.toggle('aggregate-mode',grouped);
+  document.querySelector('.people-head b').textContent=grouped?'国民阶层':'国民个体';
+  document.querySelector('.people-head span').textContent=grouped?`人口超过 ${state.cfg.bucketModeThreshold}，仅显示阶层汇总`:'点击头像查看近 12 年履历';
+  if(grouped) {
+    selectedId=null;
+    peopleGrid.innerHTML=cls.map(k=>`<section class="population-group"><h4>${names[k]} <b>${state.stats.byClass[k]} 人</b></h4><p>平均满意 ${state.stats.classSat[k].toFixed(1)}</p><p>人均资产 ${compact(state.stats.classWealth[k])}</p></section>`).join('');
+    personDetail.textContent='群体模式不显示个人资料，也不保存个人履历。人口回到阈值以内后恢复记录；国家曲线保留最近 240 年。满意度不含罪犯，资产折合粮食。';
+    return;
+  }
+  if(!state.people.some(p=>p.id===selectedId))selectedId=state.people[0]?.id;
+  peopleGrid.innerHTML=state.people.map(p=>`<button class="avatar ${p.id===selectedId?'active':''}" data-id="${p.id}"><span class="face" style="background:${colors[p.klass]}">${(p.name||'民').slice(0,1)}</span><span class="aname">${p.name||('无名'+p.id)}</span><span class="asat">满意 ${p.satisfaction.toFixed(1)}</span></button>`).join('');
+  peopleGrid.querySelectorAll('.avatar').forEach(b=>b.onclick=()=>{selectedId=+b.dataset.id;renderPeople();});
+  const p=state.people.find(x=>x.id===selectedId);
+  if(!p){personDetail.textContent='选择一位国民查看履历';return;}
+  const hs=(p.history||[]).slice(-12).reverse();
+  personDetail.innerHTML=`<div class="dtitle">${p.name||'无名'}</div>`+[
+    ['阶级',names[p.klass]],['年龄',p.age],['性别',p.gender==='female'?'女':'男'],
+    ['满意度',p.satisfaction.toFixed(2)],['智力',p.intelligence.toFixed(2)],['粮食/产品',p.grain.toFixed(1)+' / '+p.product.toFixed(1)],
+  ].map(([label,value])=>`<div class="drow"><span>${label}</span><b>${value}</b></div>`).join('')+
+    '<div class="dtitle" style="margin-top:8px">变化记录（近12年）</div>'+hs.map(h=>`<div class="histrow"><span>${h.year}年</span><span>${names[h.klass]}</span><b>${Number(h.satisfaction).toFixed(2)}</b></div>`).join('');
+}
+
+function showEvent() {
+  const event=GameCore.events.EVENTS.find(e=>e.id===state.pendingEvent[0]);
+  const presentation=GameCore.events.EVENT_PRESENTATION[event.category];
+  const modal=document.getElementById('eventModal'),card=modal.querySelector('.box');
+  card.dataset.category=event.category;card.style.setProperty('--event-color',presentation.color);
+  let badge=card.querySelector('.event-badge');
+  if(!badge){badge=document.createElement('span');badge.className='event-badge';card.prepend(badge);}
+  badge.textContent=presentation.symbol+' '+presentation.label;
+  et.textContent=event.title;ed.textContent=event.desc;eo.innerHTML='';
+  event.options.forEach((option,i)=>{
+    const button=document.createElement('button');button.textContent=option.label;
+    button.onclick=()=>{if(transition.busy)return;withCore(()=>GameCore.game.applyEventOption(state,i));render();};
+    eo.appendChild(button);
+  });
+  modal.classList.remove('hidden');
+}
 // END STANDALONE ADAPTER
     function signed(value,digits=0){let n=Number(value)||0,text=digits?n.toFixed(digits):String(Math.round(n));return n>0?'+'+text:text}function summaryText(c){return c?'第 '+c.year+' 年变化　人口 '+signed(c.population)+'　国库 '+signed(c.treasury)+'　满意 '+signed(c.avgSatisfaction,2)+'　罪犯 '+signed(c.criminals):'推进一年后显示年度变化'}
     function syncPolicyControls(){let values={tf:Math.round(state.policy.tax.farmer*100),tw:Math.round(state.policy.tax.worker*100),tm:Math.round(state.policy.tax.merchant*100),wg:state.policy.officialWage,ot:state.policy.officials.tax,os:state.policy.officials.security,ow:state.policy.officials.welfare,om:state.policy.officials.military,oe:state.policy.officials.teacher,mil:Math.round(state.policy.militaryRatio*100)};for(const [id,value] of Object.entries(values)){let el=document.getElementById(id),out=document.getElementById('o-'+id);el.value=value;out.textContent=['tf','tw','tm','mil'].includes(id)?value+'%':id==='wg'?value+' / 人':value}let available=state.people.filter(p=>p.klass==='official'&&!p.isCriminal&&p.age>=18).length,roles=state.policy.officials,active=Object.values(roles).reduce((sum,count)=>sum+count,0);capacity.textContent='计划配额 '+active+' / 可用公务员 '+available;capacity.classList.toggle('over',active>available)}
-    function render(){stat();end.classList.toggle("hidden",!state.over);year.textContent=state.year;pop.textContent=state.stats.total;tre.textContent=compact(state.treasury);tre.title=Math.round(state.treasury);sat.textContent=state.stats.avgSatisfaction;intel.textContent=state.stats.avgIntelligence;crim.textContent=state.stats.criminals;document.getElementById("score").textContent=state.score.total;yearDelta.textContent=summaryText(state.lastYearChanges);drawPie();drawHist();renderPeople();syncPolicyControls();updatePolicyLock();let key=state.log[0]||'year-'+state.year,html=state.log.map((x,i)=>i?'<div class=line>'+x+'</div>':'<div class=year>'+x+'</div>').join(''),first=log.firstElementChild;if(first?.dataset.logKey===key)first.innerHTML=html;else{let d=document.createElement('div');d.dataset.logKey=key;d.innerHTML=html;log.prepend(d)}while(log.children.length>30)log.removeChild(log.lastChild);if(state.pendingEvent)showEvent();else document.getElementById('eventModal').classList.add('hidden');if(state.pendingWar)showWar();else warModal.classList.add('hidden');if(state.over){endt.textContent='游戏结束';endd.textContent='原因：'+state.over.replace('lose:','');end.classList.remove('hidden')}}
-    function showEvent(){let e=state.pendingEvent;et.textContent=e[1];ed.textContent=e[2];eo.innerHTML='';e[3].forEach((o,i)=>{let b=document.createElement('button');b.textContent=o[0];b.onclick=()=>{if(transition.busy)return;withCore(()=>GameCore.game.applyEventOption(state,i));render()};eo.appendChild(b)});document.getElementById('eventModal').classList.remove('hidden')}
+    function render(){stat();end.classList.toggle("hidden",!state.over);year.textContent=state.year;pop.textContent=state.stats.total;tre.textContent=compact(state.treasury);tre.title=Math.round(state.treasury);sat.textContent=state.stats.avgSatisfaction;intel.textContent=state.stats.avgIntelligence;crim.textContent=state.stats.criminals;document.getElementById("score").textContent=state.score.total;yearDelta.textContent=summaryText(state.lastYearChanges);drawPie();drawHist();renderPeople();syncPolicyControls();updatePolicyLock();appendYearLog();if(state.pendingEvent)showEvent();else document.getElementById('eventModal').classList.add('hidden');if(state.pendingWar)showWar();else warModal.classList.add('hidden');if(state.over){endt.textContent='游戏结束';endd.textContent='原因：'+state.over.replace('lose:','');end.classList.remove('hidden')}}
     function drawPie(){let c=pie.getContext('2d'),W=pie.width,H=pie.height;c.clearRect(0,0,W,H);let total=state.stats.total,start=-Math.PI/2;for(const k of cls){let v=state.stats.byClass[k];if(!v)continue;let a=v/total*Math.PI*2;c.beginPath();c.moveTo(W/2,H/2-10);c.arc(W/2,H/2-10,75,start,start+a);c.fillStyle=colors[k];c.fill();start+=a}let x=14,y=185;c.font='12px sans-serif';for(const k of cls){c.fillStyle=colors[k];c.fillRect(x,y,10,10);c.fillStyle='#333';c.fillText(names[k]+' '+state.stats.byClass[k],x+14,y+10);x+=68}}
-    function renderPeople(){if(!state.people.some(p=>p.id===selectedId))selectedId=state.people[0]?.id;let visible=state.people.slice(0,C.renderLimit);peopleGrid.innerHTML=visible.map(p=>'<button class="avatar '+(p.id===selectedId?'active':'')+'" data-id="'+p.id+'"><span class="face" style="background:'+colors[p.klass]+'">'+(p.name||'民').slice(0,1)+'</span><span class="aname">'+(p.name||('无名'+p.id))+'</span><span class="asat">满意 '+p.satisfaction.toFixed(1)+'</span></button>').join('')+(state.people.length>C.renderLimit?'<div class="truncated">为保持流畅，仅显示前 '+C.renderLimit+' / '+state.people.length+' 人</div>':'');peopleGrid.querySelectorAll('.avatar').forEach(b=>b.onclick=()=>{selectedId=+b.dataset.id;renderPeople()});let p=state.people.find(x=>x.id===selectedId);if(!p){personDetail.textContent='选择一位国民查看履历';return}let hs=(p.history||[]).slice(-12).reverse();personDetail.innerHTML='<div class="dtitle">'+p.name+'</div><div class="drow"><span>阶级</span><b>'+names[p.klass]+'</b></div><div class="drow"><span>年龄</span><b>'+p.age+'</b></div><div class="drow"><span>性别</span><b>'+(p.gender==='female'?'女':'男')+'</b></div><div class="drow"><span>满意度</span><b>'+p.satisfaction.toFixed(2)+'</b></div><div class="drow"><span>智力</span><b>'+p.intelligence.toFixed(2)+'</b></div><div class="drow"><span>粮食/产品</span><b>'+p.grain.toFixed(1)+' / '+p.product.toFixed(1)+'</b></div><div class="dtitle" style="margin-top:8px">变化记录</div>'+hs.map(h=>'<div class="histrow"><span>'+h.year+'年</span><span>'+names[h.klass]+'</span><b>'+Number(h.satisfaction).toFixed(2)+'</b></div>').join('')}
     function drawHist(){let c=hist.getContext('2d'),W=hist.width,H=hist.height,h=state.history;c.clearRect(0,0,W,H);if(h.length<2){c.strokeStyle='#e8e1d3';c.lineWidth=2;c.strokeRect(28,24,W-56,H-48);c.fillStyle='#b7b0a3';c.font='600 18px Microsoft YaHei, sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText('推进几年后显示人口、满意度、国库曲线',W/2,H/2);c.textAlign='left';c.textBaseline='alphabetic';return}let first=h[0].year,lastY=h[h.length-1].year;if(chartView.start==null){chartView.start=first;chartView.end=lastY}if(chartView.end===lastY-1)chartView.end=lastY;chartView.start=Math.max(first,Math.min(chartView.start,lastY-1));chartView.end=Math.min(lastY,Math.max(chartView.end,chartView.start+1));let pts=h.filter(p=>p.year>=chartView.start&&p.year<=chartView.end);if(pts.length<2)pts=h.slice(-2);let min=pts[0].year,max=pts[pts.length-1].year,xmap=y=>38+(y-min)/(max-min||1)*(W-54);c.strokeStyle='#ddd';c.strokeRect(38,32,W-54,H-66);function line(fn,col){let vs=pts.map(fn),lo=Math.min(...vs),hi=Math.max(...vs),r=hi-lo||1;c.beginPath();c.strokeStyle=col;c.lineWidth=2;pts.forEach((p,i)=>{let x=xmap(p.year),y=32+(H-66)-(vs[i]-lo)/r*(H-66);i?c.lineTo(x,y):c.moveTo(x,y)});c.stroke()}line(p=>p.population,colors.worker);line(p=>p.avgSatisfaction,colors.farmer);line(p=>p.treasury,colors.merchant);c.fillStyle='#8a8174';c.font='10px sans-serif';c.textAlign='center';for(let i=0;i<Math.min(6,Math.max(2,max-min+1));i++){let y=Math.round(min+(max-min)*i/(Math.min(6,Math.max(2,max-min+1))-1||1));c.fillText(y+'年',xmap(y),H-14)}c.textAlign='left';let last=pts[pts.length-1],x=38;c.font='11px sans-serif';for(const it of [{t:'人口 '+last.population,c:colors.worker},{t:'满意度 '+last.avgSatisfaction,c:colors.farmer},{t:'国库 '+compact(last.treasury),c:colors.merchant}]){c.strokeStyle=it.c;c.lineWidth=3;c.beginPath();c.moveTo(x,16);c.lineTo(x+18,16);c.stroke();c.fillStyle='#54667a';c.fillText(it.t,x+23,20);x+=118}if(chartView.hover!=null){let p=pts.reduce((a,b)=>Math.abs(b.year-chartView.hover)<Math.abs(a.year-chartView.hover)?b:a,pts[0]),hx=xmap(p.year);c.strokeStyle='#263645';c.setLineDash([4,4]);c.beginPath();c.moveTo(hx,32);c.lineTo(hx,H-34);c.stroke();c.setLineDash([]);let bx=Math.min(W-150,Math.max(8,hx+10)),by=42;c.fillStyle='rgba(255,250,240,.96)';c.strokeStyle='#dfd3bd';c.fillRect(bx,by,142,70);c.strokeRect(bx,by,142,70);c.fillStyle='#263645';['第 '+p.year+' 年','人口 '+p.population,'满意度 '+p.avgSatisfaction,'国库 '+compact(p.treasury)+' ('+p.treasury+')'].forEach((t,i)=>c.fillText(t,bx+8,by+16+i*14))}}
     function policyOpen(){return !transition.busy&&!state.over&&!state.pendingEvent&&!state.pendingWar&&(state.year-1)%3===0}function securityOpen(){return !transition.busy&&!state.over&&!state.pendingEvent&&!state.pendingWar&&state.year>=5}function welfareOpen(){return policyOpen()&&state.year>=11}function militaryOpen(){return policyOpen()&&state.year>=21}function welfareCount(){return state.people.filter(p=>!p.isCriminal&&p.role==='welfare').length}function taxInterval(){let n=welfareCount();return n>10?1:Math.max(1,11-n)}function taxOpen(){if(transition.busy)return false;if(state.over||state.pendingEvent||state.pendingWar)return false;if(state.people.length<=100)return policyOpen();if(!welfareCount())return false;if(state.lastTaxChangeYear==null||state.lastTaxChangeYear===state.year)return true;return state.year-state.lastTaxChangeYear>=taxInterval()}function setTax(k,v){if(!taxOpen())return;v=Math.max(v,state.treaty?.minTaxRate||0);if(state.policy.tax[k]===v)return;state.policy.tax[k]=v;state.lastTaxChangeYear=state.year}function updatePolicyLock(){let open=policyOpen(),left=3-((state.year-1)%3),floor=Math.round((state.treaty?.minTaxRate||0)*100);tip.textContent=open?'政策窗口开放：本年可调整公务员与军费':'政策已锁定，'+left+' 年后可再次调控；治安官第 5 年起可单独调整';presetTip.textContent=open?'政策窗口开放，可一键应用':'政策已锁定，'+left+' 年后开放';document.querySelectorAll('input[type=range]').forEach(el=>{if(['tf','tw','tm'].includes(el.id)){el.disabled=!taxOpen();el.min=floor}else if(el.id==='os')el.disabled=!securityOpen();else if(el.id==='ow')el.disabled=!welfareOpen();else if(el.id==='om')el.disabled=!militaryOpen();else el.disabled=!open});document.querySelectorAll('.preset').forEach(el=>el.disabled=!open);if(floor)taxTip.textContent='条约期内税率不得低于'+floor+'%';else if(state.people.length<=100)taxTip.textContent='人口不超过100：税率随常规政策窗口调整';else if(!welfareCount())taxTip.textContent='人口超过100且无民生官员：税率锁定';else if(taxOpen())taxTip.textContent=welfareCount()+'名民生官员：本年可调税（间隔'+taxInterval()+'年）';else taxTip.textContent=welfareCount()+'名民生官员：'+Math.max(0,taxInterval()-(state.year-state.lastTaxChangeYear))+'年后可调税'}
     function bind(id,fn,fmt=v=>v,allow=policyOpen){let el=document.getElementById(id),out=document.getElementById('o-'+id);el.oninput=()=>{out.textContent=fmt(el.value);if(allow())fn(+el.value)};el.oninput()}newGame();bind('tf',v=>setTax('farmer',v/100),v=>v+'%',taxOpen);bind('tw',v=>setTax('worker',v/100),v=>v+'%',taxOpen);bind('tm',v=>setTax('merchant',v/100),v=>v+'%',taxOpen);bind('wg',v=>state.policy.officialWage=v,v=>v+' / 人');bind('ot',v=>state.policy.officials.tax=v);bind('os',v=>state.policy.officials.security=v,v=>v,securityOpen);bind('ow',v=>state.policy.officials.welfare=v,v=>v,welfareOpen);bind('om',v=>state.policy.officials.military=v,v=>v,militaryOpen);bind('oe',v=>state.policy.officials.teacher=v);bind('mil',v=>state.policy.militaryRatio=v/100,v=>v+'%');document.querySelectorAll('.roleHelp').forEach(b=>b.onclick=e=>{e.preventDefault();document.getElementById(b.dataset.help).classList.toggle('hidden')});

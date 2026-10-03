@@ -4,9 +4,29 @@
  * 每个选项都必须同时声明可见收益、可见代价，以及隐藏的善恶值和理性值变化。
  */
 const { syncNextId } = require('./person.js');
+const { DEFAULT_CONFIG } = require('./config.js');
+
+const EVENT_PRESENTATION = Object.freeze({
+  good: Object.freeze({ label: '好事件', color: '#b45309', symbol: '✦' }),
+  bad: Object.freeze({ label: '坏事件', color: '#202020', symbol: '▲' }),
+  neutral: Object.freeze({ label: '中性事件', color: '#666666', symbol: '◆' }),
+});
+
+const CATEGORIES = {
+  drought: 'bad', merchant_caravan: 'good', scholar: 'neutral', good_harvest: 'good',
+  rebellion_warning: 'bad', noble_invite: 'neutral', inflation: 'bad', farmer_petition: 'bad',
+  criminal_sentencing: 'neutral', corrupt_official: 'bad', workshop_dispute: 'bad',
+  refugees_at_gate: 'neutral', canal_dispute: 'bad', celestial_omen: 'neutral',
+  corruption_aftershock: 'bad', merchant_backlash: 'bad', refugee_integration: 'neutral',
+  reformed_prisoner_review: 'neutral',
+};
 
 function option(label, benefit, cost, hiddenEffects, apply, storyHook) {
   return { label, tradeoffs: { benefit, cost }, hiddenEffects, apply, storyHook };
+}
+
+function eventLogCategory(text) {
+  return Object.keys(EVENT_PRESENTATION).find(key => String(text).startsWith(`📜【${EVENT_PRESENTATION[key].label}】`)) || '';
 }
 
 function citizens(state, klass) {
@@ -74,6 +94,7 @@ function applyPlague(state, plague, treatmentFactor = 1) {
 function plagueEvent(plague) {
   return {
     id: `plague_${plague.id}`,
+    category: 'bad',
     title: `瘟疫：${plague.name}`,
     desc: plague.desc,
     weight: 1,
@@ -104,6 +125,26 @@ const PLAGUES = [
 ];
 
 const EVENTS = [
+  {
+    id: 'village_festival', category: 'good', title: '乡里丰年会', weight: 5,
+    desc: '百姓用农闲筹办丰年会，既可互助补粮，也可兴办集市。朝廷不必额外出资。',
+    condition: s => s.year > 1 && s.people.length > 0,
+    options: [
+      option('鼓励邻里互助（每人粮食 +2、满意 +1；放弃集市税收）', '民间新收成用于补粮与互助', '放弃本次 80 集市税收', { morality: 2, rationality: -1 }, s => {
+        citizens(s).forEach(p => { p.grain += 2; p.satisfaction += 1; });
+      }),
+      option('开放节庆集市（国库 +80；放弃本次补粮与满意奖励）', '外地客商带来额外税收 80', '放弃本次每人粮食 2 与满意 1', { morality: -1, rationality: 2 }, s => { s.treasury += 80; }),
+    ],
+  },
+  {
+    id: 'craftsman_gift', category: 'good', title: '巧匠献礼', weight: 5,
+    desc: '工匠试制出一批余货，愿将成果用于改善百姓生活，或售予外地客商。',
+    condition: s => s.year > 2 && s.stats.byClass.worker >= 2,
+    options: [
+      option('分发新器具（每人产品 +1；放弃售货收入）', '试制产品改善生活', '放弃本次 100 售货收入', { morality: 2, rationality: 1 }, s => { citizens(s).forEach(p => { p.product += 1; }); }),
+      option('出售余货充库（国库 +100；放弃本次器具分发）', '外销产品增加国库 100', '放弃本次每人产品 1', { morality: -1, rationality: 2 }, s => { s.treasury += 100; }),
+    ],
+  },
   {
     id: 'drought', title: '蝗灾来袭', desc: '今春蝗虫遮天蔽日，农田损失惨重。', weight: 10,
     condition: s => s.year >= 2 && s.year % 7 === 0,
@@ -330,14 +371,22 @@ const EVENTS = [
 ];
 
 /** 选取一个本年度事件，返回 null 表示无事件。 */
+// 分类描述局势，不代表对玩家选项的道德评价。
+for (const event of EVENTS) event.category = event.category || CATEGORIES[event.id];
+
 function rollEvent(state) {
+  if (state.pendingEvent || state.pendingWar || state.over) return null;
   const candidates = EVENTS.filter(e => {
     try { return e.condition(state); } catch { return false; }
   });
   if (!candidates.length || !state.rng.chance(0.55)) return null;
   const recent = Array.isArray(state.recentEventIds) ? state.recentEventIds.slice(-2) : [];
-  const freshCandidates = candidates.filter(e => !recent.includes(e.id));
-  const pool = freshCandidates.length ? freshCandidates : candidates;
+  const interval = state.cfg?.positiveEventInterval ?? DEFAULT_CONFIG.positiveEventInterval;
+  const positiveDue = (state.eventsSincePositive || 0) >= interval - 1;
+  const positives = positiveDue ? candidates.filter(e => e.category === 'good') : [];
+  const pacedCandidates = positives.length ? positives : candidates;
+  const freshCandidates = pacedCandidates.filter(e => !recent.includes(e.id));
+  const pool = freshCandidates.length ? freshCandidates : pacedCandidates;
   const total = pool.reduce((sum, event) => sum + event.weight, 0);
   let roll = state.rng.uniform(0, total);
   let selected = pool[pool.length - 1];
@@ -346,7 +395,8 @@ function rollEvent(state) {
     if (roll <= 0) { selected = event; break; }
   }
   state.recentEventIds = [...recent, selected.id].slice(-2);
+  state.eventsSincePositive = selected.category === 'good' ? 0 : Math.min(interval - 1, (state.eventsSincePositive || 0) + 1);
   return selected;
 }
 
-module.exports = { EVENTS, rollEvent };
+module.exports = { EVENT_PRESENTATION, eventLogCategory, EVENTS, rollEvent };

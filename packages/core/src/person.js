@@ -1,14 +1,14 @@
 /**
  * 个体 / 阶级群体定义
  */
-import { CLASS } from './config.js';
+import { CLASS, DEFAULT_CONFIG } from './config.js';
 
 let _uid = 0;
 export const nextId = () => ++_uid;
 
 /** 读档或事件新增人口后，将后续出生编号推进到当前最大值之后。 */
 export function syncNextId(people) {
-  _uid = Math.max(_uid, ...people.map(p => Number(p.id) || 0));
+  for (const p of people) _uid = Math.max(_uid, Number(p.id) || 0);
 }
 
 const SURNAMES = '赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹'.split('');
@@ -104,7 +104,23 @@ export function aggregate(people) {
   return stats;
 }
 
-export function recordPersonHistory(people, year) {
+export function isAggregateMode(people, cfg = DEFAULT_CONFIG) {
+  return people.length > (cfg.bucketModeThreshold ?? DEFAULT_CONFIG.bucketModeThreshold);
+}
+
+/** 不改变个人模拟数据；仅释放 UI 不再使用的履历。 */
+export function trimPersonHistory(people, cfg = DEFAULT_CONFIG) {
+  const limit = isAggregateMode(people, cfg) ? 0 : (cfg.personHistoryLimit ?? DEFAULT_CONFIG.personHistoryLimit);
+  for (const p of people) {
+    if (!Array.isArray(p.history)) p.history = [];
+    if (p.history.length > limit) p.history.splice(0, p.history.length - limit);
+  }
+}
+
+export function recordPersonHistory(people, year, cfg = DEFAULT_CONFIG) {
+  trimPersonHistory(people, cfg);
+  if (isAggregateMode(people, cfg)) return;
+  const limit = cfg.personHistoryLimit ?? DEFAULT_CONFIG.personHistoryLimit;
   for (const p of people) {
     if (!p.name) p.name = `无名${p.id}`;
     if (!Array.isArray(p.history)) p.history = [];
@@ -116,6 +132,6 @@ export function recordPersonHistory(people, year) {
     };
     if (!last || last.year !== year) p.history.push(entry);
     else Object.assign(last, entry);
-    if (p.history.length > 120) p.history.shift();
+    if (p.history.length > limit) p.history.splice(0, p.history.length - limit);
   }
 }

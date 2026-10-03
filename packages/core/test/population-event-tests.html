@@ -1,0 +1,81 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>population/event tests running</title>
+<style>body{margin:0;background:#e6dfd1;font:14px system-ui}pre{padding:10px}section{display:flex;gap:12px;padding:12px}iframe{border:0;height:860px;flex-shrink:0}#web{width:940px}#local{width:390px}</style>
+<pre id="result">running</pre><section id="frames"></section>
+<script type="module">
+const lines=[], assert=(v,m)=>{if(!v)throw Error(m);};
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const targets=location.protocol==='file:'?['local']:['web','local'];
+const frames=await Promise.all(targets.map(id=>new Promise(resolve=>{
+  const frame=document.createElement('iframe');frame.id=id;
+  frame.onload=()=>resolve(frame);frame.src=id==='web'?'../../../apps/web/index.html':'../../../play.html';
+  document.getElementById('frames').append(frame);
+})));
+try {
+  for(const frame of frames) {
+    const w=frame.contentWindow,d=frame.contentDocument,isWeb=frame.id==='web';
+    const core=isWeb?await import('../../../packages/core/src/game.js'):w.eval('GameCore.game');
+    const people=isWeb?await import('../../../packages/core/src/person.js'):w.eval('GameCore.person');
+    const events=isWeb?(await import('../../../packages/core/src/events.js')).EVENTS:w.eval('GameCore.events.EVENTS');
+    const get=()=>isWeb?w.__game.state:w.eval('state');
+    const render=()=>isWeb?w.__game.ui.render(get()):w.eval('render()');
+    const reset=()=>{if(isWeb)w.__game.state=core.newGame({seed:1580013426});else w.eval('state=GameCore.game.newGame({seed:1580013426});');};
+    d.querySelector('#tutorial')?.classList.add('hidden');reset();
+    let elapsed=0;
+    for(const count of [300,301,2000,300]) {
+      const s=get();s.people=people.seedPopulation(s.rng,{farmer:Math.floor(count*.6),worker:Math.floor(count*.25),merchant:Math.floor(count*.05),official:count-Math.floor(count*.6)-Math.floor(count*.25)-Math.floor(count*.05)});
+      s.stats=people.aggregate(s.people);
+      people.recordPersonHistory(s.people,s.year,s.cfg);
+      const start=performance.now();render();elapsed+=performance.now()-start;
+      const grid=d.getElementById(isWeb?'people-grid':'peopleGrid'),detail=d.getElementById(isWeb?'person-detail':'personDetail');
+      assert(grid.querySelectorAll(isWeb?'.person-avatar':'.avatar').length===(count>300?0:count),frame.id+' threshold '+count);
+      if(count>300) {
+        assert(grid.querySelectorAll('.population-group').length===4,'missing class summaries');
+        assert([...grid.querySelectorAll('.population-group')].every(card=>card.getBoundingClientRect().width>=100),'class cards squeezed by old individual sidebar');
+        const board=d.querySelector(isWeb?'.people-board':'.people');
+        assert(detail.getBoundingClientRect().bottom<=board.getBoundingClientRect().bottom+1,'aggregate content overflows its board');
+        assert(!(isWeb?w.__game.ui.selectedPersonId:w.eval('selectedId')),'stale selected person');
+        assert(!detail.textContent.includes(s.people[0].name),'individual leaked in aggregate detail');
+        assert(s.people.every(p=>p.history.length===0),'individual histories retained');
+        assert(grid.querySelectorAll('*').length<40,'aggregate DOM scales with population');
+      } else assert(detail.textContent.includes(s.people[0].name),'individual details did not return');
+    }
+    lines.push('PASS '+frame.id+' 300→301→2000→300: exact threshold, no stale personal details; total render '+elapsed.toFixed(1)+'ms');
+    for(const category of ['good','bad','neutral']) {
+      const e=events.find(e=>e.category===category);
+      if(isWeb){get().pendingEvent=e;render();}else w.eval(`state.pendingEvent=EVENTS.find(e=>e[0]==='${e.id}');render();`);
+      const card=d.querySelector(isWeb?'#event-modal .modal-card':'#eventModal .box'),badge=card.querySelector('.event-badge');
+      const meta=core.EVENT_PRESENTATION[category];
+      assert(card.dataset.category===category&&badge.textContent.includes(meta.label),'category not visible '+category);
+      const expected={good:'rgb(180, 83, 9)',bad:'rgb(32, 32, 32)',neutral:'rgb(102, 102, 102)'}[category];
+      assert(w.getComputedStyle(badge).color===expected,'wrong color '+category);
+      d.querySelector(isWeb?'#event-options button':'#eo button').click();
+      assert(!get().pendingEvent,'event cannot be resolved');
+      const log=d.querySelector('.log-line.event-'+category+',.line.event-'+category);
+      assert(log&&w.getComputedStyle(log).color===expected,'log lost event color '+category);
+    }
+    lines.push('PASS '+frame.id+' orange/black/grey badges and logs, all options clickable');
+    reset();render();
+    for(let i=0;i<15;i++) {
+      if(get().pendingEvent)d.querySelector(isWeb?'#event-options button':'#eo button').click();
+      if(get().pendingWar){core.applyWarDecision(get(),{action:'treaty'});render();}
+      d.getElementById(isWeb?'btn-next':'next').click();
+      d.querySelector('.year-transition button').click();await wait(0);
+    }
+    assert(get().year===16&&!get().over,'15-turn real-button session stalled');
+    lines.push('PASS '+frame.id+' 15 years with actual next-year / skip / event buttons');
+    get().pendingEvent=null;get().pendingWar=null;
+    get().people=people.seedPopulation(get().rng,{farmer:450,worker:240,merchant:40,official:70});
+    get().stats=people.aggregate(get().people);render();
+    assert(d.documentElement.scrollWidth<=frame.clientWidth+1,'horizontal overflow '+frame.id);
+    if(location.search.includes('show=good')) {
+      if(isWeb)get().pendingEvent=events.find(e=>e.id==='village_festival');
+      else w.eval("state.pendingEvent=EVENTS.find(e=>e[0]==='village_festival')");
+      render();
+    } else d.querySelector(isWeb?'.people-board':'.people').scrollIntoView({block:'start'});
+    assert(!/morality|rationality|善恶值|理性值/.test(d.body.innerText),'hidden values exposed');
+  }
+} catch(error) {lines.push('FAIL '+error.stack);}
+result.textContent=lines.join('\n');document.title=lines.some(l=>l.startsWith('FAIL'))?'population/event tests failed':'population/event tests passed';
+</script>

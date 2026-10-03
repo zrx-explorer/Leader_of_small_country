@@ -1,5 +1,5 @@
 // app.js
-const { newGame, nextYear, applyEventOption, applyWarDecision, applyPolicyPreset, estimateWarCost, treatyTaxFloor, serialize, deserialize, policyNotice } = require('./core/game.js');
+const { newGame, nextYear, applyEventOption, applyWarDecision, applyPolicyPreset, estimateWarCost, treatyTaxFloor, serialize, deserialize, policyNotice, EVENT_PRESENTATION, eventLogCategory } = require('./core/game.js');
 
 App({
   globalData: {
@@ -18,6 +18,7 @@ App({
   },
   // 业务方法暴露
   api: {
+    EVENT_PRESENTATION, eventLogCategory,
     policyNotice,
     nextYear: (state) => nextYear(state),
     applyEventOption: (state, idx) => applyEventOption(state, idx),

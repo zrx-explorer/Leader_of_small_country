@@ -16,6 +16,7 @@
       <view class="hud-item">公 <text class="v">{{classCount.official}}</text></view>
     </view>
     <view style="font-size:22rpx;color:#54667a;margin-top:16rpx;">{{yearSummary}}</view>
+    <view class="pacing-note">{{populationNotice}}</view>
     <view wx:if="{{policyNotice}}" style="font-size:22rpx;color:#9a6a22;margin-top:16rpx;">{{policyNotice}}</view>
   </view>
 
@@ -30,7 +31,8 @@
     </view>
   </view>
 
-  <view wx:if="{{war}}" class="card" style="border-top:4rpx solid #c0392b;">
+  <view wx:if="{{war}}" class="card" style="border-top:6rpx solid #202020;">
+    <view class="event-badge" style="color:#202020">▲ 坏事件 · 战争</view>
     <view class="title">⚔ {{war.enemyName}}入侵</view>
     <view style="font-size:24rpx;color:#54667a;line-height:1.6;">敌军强度{{war.enemyStrength}}，可征召{{war.eligible}}人</view>
     <view style="font-size:24rpx;margin-top:12rpx;">征兵规模 {{conscription}}%</view>
@@ -47,7 +49,8 @@
   </view>
 
   <!-- 事件 -->
-  <view wx:if="{{event}}" class="card" style="border-top:4rpx solid #c0392b;">
+  <view wx:if="{{event}}" class="card" style="border-top:6rpx solid {{eventColor}};">
+    <view class="event-badge" style="color:{{eventColor}}">{{eventLabel}}</view>
     <view class="title">📜 {{event.title}}</view>
     <view style="font-size:26rpx;color:#54667a;line-height:1.6;margin-bottom:14rpx;">{{event.desc}}</view>
     <block wx:for="{{event.options}}" wx:key="index">
@@ -72,8 +75,10 @@
   <!-- 日志 -->
   <view class="card">
     <view class="title">朝堂日志</view>
-    <block wx:for="{{logs}}" wx:key="index">
-      <view style="font-size:24rpx;color:#54667a;line-height:1.7;">{{item}}</view>
+    <view class="event-legend"><text style="color:#b45309">✦ 好事件　</text><text style="color:#202020">▲ 坏事件　</text><text style="color:#666666">◆ 中性事件</text></view>
+    <view class="pacing-note">每连续3次非好事件后，下次普通事件必为好事件。战争优先处理。</view>
+    <block wx:for="{{logEntries}}" wx:key="index">
+      <view style="font-size:24rpx;color:{{item.color}};line-height:1.7;">{{item.text}}</view>
     </block>
   </view>
 </view>

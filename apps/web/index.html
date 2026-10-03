@@ -6,6 +6,7 @@
   <meta name="description" content="小国执政官 —— 一款数值模拟版的轻量化执政模拟游戏" />
   <title>小国执政官 · 执政模拟</title>
   <link rel="stylesheet" href="./styles/main.css" />
+  <link rel="stylesheet" href="./styles/presentation.css" />
 </head>
 <body>
   <header class="topbar">
@@ -104,7 +105,7 @@
           <canvas id="chart-class" width="280" height="220"></canvas>
         </div>
         <div class="chart-box">
-          <h3>历史曲线</h3>
+          <h3>历史曲线 · 最近240年</h3>
           <canvas id="chart-history" width="540" height="220"></canvas>
           <div class="legend">
             <span class="lg lg-pop">蓝线：人口规模</span>
@@ -123,8 +124,8 @@
 
       <section class="people-board">
         <div class="people-head">
-          <h3>国民个体</h3>
-          <span>点击头像查看阶级与满意度变化</span>
+          <h3 id="population-heading">国民个体</h3>
+          <span id="population-hint">点击头像查看近 12 年履历</span>
         </div>
         <div class="people-content">
           <div id="people-grid" class="people-grid"></div>
@@ -138,6 +139,8 @@
     <!-- 右：日志/事件 -->
     <aside class="panel panel-log">
       <h2>朝堂日志</h2>
+      <div class="event-legend" aria-label="事件颜色说明"><span class="event-good">✦ 好事件</span><span class="event-bad">▲ 坏事件</span><span class="event-neutral">◆ 中性事件</span></div>
+      <p class="pacing-note">每连续 3 次非好事件后，下次普通事件必为好事件。战争优先处理。</p>
       <div id="log-list" class="log-list"></div>
     </aside>
   </main>
@@ -145,6 +148,7 @@
   <!-- 事件弹窗 -->
   <div id="event-modal" class="modal hidden">
     <div class="modal-card">
+      <span id="event-category" class="event-badge"></span>
       <h3 id="event-title">事件</h3>
       <p id="event-desc" class="event-desc"></p>
       <div id="event-options" class="event-options"></div>
@@ -153,6 +157,7 @@
 
   <div id="war-modal" class="modal hidden">
     <div class="modal-card war-card">
+      <span class="event-badge">▲ 坏事件 · 战争</span>
       <h3 id="war-title">⚔ 战争危机</h3>
       <p id="war-desc" class="event-desc"></p>
       <div class="war-grid">

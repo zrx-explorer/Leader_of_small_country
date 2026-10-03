@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 const root=process.cwd();
 const edge=process.env.EDGE_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const pages=process.argv.slice(2);
-if(!pages.length)pages.push('browser-tests','miniprogram-browser-tests','web-policy-tests','play-browser-tests','experience-tests','file:play-browser-tests');
+if(!pages.length)pages.push('browser-tests','miniprogram-browser-tests','web-policy-tests','play-browser-tests','experience-tests','population-event-tests','file:play-browser-tests','file:population-event-tests');
 let failed=false;
 for(const page of pages){
   const profile=fs.mkdtempSync(path.join(root,'.tmp-edge-check-'));

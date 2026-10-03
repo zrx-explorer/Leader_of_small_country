@@ -4,7 +4,7 @@
  */
 const { DEFAULT_CONFIG, CHAPTERS, CLASS } = require('./config.js');
 const { RNG } = require('./math.js');
-const { seedPopulation, aggregate, recordPersonHistory, syncNextId } = require('./person.js');
+const { seedPopulation, aggregate, recordPersonHistory, trimPersonHistory, syncNextId } = require('./person.js');
 const { farmersProduce, workersProduce, trade, consume } = require('./economy.js');
 const {
   updateSatisfaction, judgeStatus, enforceSecurity, plunder,
@@ -13,7 +13,7 @@ const {
 const {
   assignRoles, collectTax, payWages, educate, military, securityCount,
 } = require('./government.js');
-const { EVENTS, rollEvent } = require('./events.js');
+const { EVENTS, rollEvent, EVENT_PRESENTATION, eventLogCategory } = require('./events.js');
 const { governanceScore } = require('./score.js');
 const {
   maybeStartWar, applyWarDecision: resolveWar, estimateWarCost,
@@ -121,12 +121,13 @@ function newGame({ chapter = 1, seed = Date.now() } = {}) {
     lastTaxChangeYear: null,
     lastYearChanges: null,
     recentEventIds: [],
+    eventsSincePositive: 0,
     storyHooks: [],
     modifiers: {},
   };
   state.stats = aggregate(people);
   state.score = governanceScore(state);
-  recordPersonHistory(state.people, state.year);
+  recordPersonHistory(state.people, state.year, state.cfg);
   return state;
 }
 
@@ -135,7 +136,7 @@ function applyEventOption(state, optionIndex) {
   const ev = state.pendingEvent;
   if (!ev) return;
   const opt = ev.options[optionIndex] || ev.options[0];
-  state.log.push(`📜 事件【${ev.title}】→ ${opt.label}`);
+  state.log.push(`📜【${EVENT_PRESENTATION[ev.category || 'neutral'].label}】事件【${ev.title}】→ ${opt.label}`);
   opt.apply(state);
   const hiddenEffects = opt.hiddenEffects || {};
   const moralityDelta = Number(hiddenEffects.morality);
@@ -147,6 +148,7 @@ function applyEventOption(state, optionIndex) {
   state.stats = aggregate(state.people);
   state.score = governanceScore(state);
   if (opt.storyHook) state.storyHooks.push(opt.storyHook);
+  trimHistory(state);
   state.pendingEvent = null;
 }
 
@@ -263,8 +265,9 @@ function nextYear(state) {
     avgSatisfaction: +(state.stats.avgSatisfaction - before.avgSatisfaction).toFixed(2),
     criminals: state.stats.criminals - before.criminals,
   };
-  recordPersonHistory(state.people, state.year);
+  recordPersonHistory(state.people, state.year, state.cfg);
   state.history.push(snapshot(state));
+  trimHistory(state);
 
   // ⑫ 胜负判定
   judgeOutcome(state);
@@ -340,8 +343,18 @@ function judgeOutcome(s) {
   }
 }
 
-/** 序列化存档（不含 RNG 内部状态保留 seed 即可） */
+/** 仅保留实际会被界面使用的滚动记录，读档时也清理旧版超长历史。 */
+function trimHistory(s) {
+  trimPersonHistory(s.people, s.cfg);
+  if (s.history.length > s.cfg.historyLimit) s.history.splice(0, s.history.length - s.cfg.historyLimit);
+  if (s.storyHooks.length > s.cfg.storyHookLimit) s.storyHooks.splice(0, s.storyHooks.length - s.cfg.storyHookLimit);
+  if (s.log.length > 100) s.log.splice(1, s.log.length - 100);
+  if (s.warHistory.length > 40) s.warHistory.splice(0, s.warHistory.length - 40);
+}
+
+/** 序列化存档，保留 RNG 状态与事件节奏。 */
 function serialize(s) {
+  trimHistory(s);
   return JSON.stringify({
     year: s.year, chapter: s.chapter, seed: s.seed,
     treasury: s.treasury, morality: s.morality, rationality: s.rationality,
@@ -350,6 +363,7 @@ function serialize(s) {
     storyHooks: s.storyHooks, modifiers: s.modifiers,
     lastTaxChangeYear: s.lastTaxChangeYear,
     lastYearChanges: s.lastYearChanges, recentEventIds: s.recentEventIds,
+    eventsSincePositive: s.eventsSincePositive,
     pendingEventId: s.pendingEvent?.id || null,
     pendingWar: s.pendingWar, treaty: s.treaty,
     lastWarYear: s.lastWarYear, warHistory: s.warHistory,
@@ -378,6 +392,8 @@ function deserialize(json) {
   s.lastTaxChangeYear = o.lastTaxChangeYear ?? null;
   s.lastYearChanges = o.lastYearChanges || null;
   s.recentEventIds = Array.isArray(o.recentEventIds) ? o.recentEventIds.slice(-2) : [];
+  s.eventsSincePositive = Number.isFinite(o.eventsSincePositive)
+    ? Math.max(0, Math.min(s.cfg.positiveEventInterval - 1, Math.floor(o.eventsSincePositive))) : 0;
   s.pendingEvent = o.pendingEventId ? (EVENTS.find(e => e.id === o.pendingEventId) || null) : null;
   s.pendingWar = o.pendingWar || null; s.treaty = o.treaty || null;
   s.lastWarYear = o.lastWarYear ?? null; s.warHistory = o.warHistory || [];
@@ -388,9 +404,10 @@ function deserialize(json) {
   s.consecutiveLowSatYears = o.consecutiveLowSatYears || 0;
   s.stats = aggregate(s.people);
   s.score = governanceScore(s);
+  trimHistory(s);
   return s;
 }
 
 
 
-module.exports = { POLICY_PRESETS, applyPolicyPreset, newGame, applyEventOption, applyWarDecision, policyNotice, nextYear, serialize, deserialize, estimateWarCost, treatyTaxFloor, CHAPTERS, CLASS, DEFAULT_CONFIG };
+module.exports = { POLICY_PRESETS, applyPolicyPreset, newGame, applyEventOption, applyWarDecision, policyNotice, nextYear, serialize, deserialize, estimateWarCost, treatyTaxFloor, EVENT_PRESENTATION, eventLogCategory, CHAPTERS, CLASS, DEFAULT_CONFIG };

@@ -5,6 +5,8 @@ import {
   drawClassPie, drawHistory, formatCompactNumber, yearAtCanvasX,
 } from './charts.js';
 import { policyNotice } from '../../../packages/core/src/game.js';
+import { isAggregateMode } from '../../../packages/core/src/person.js';
+import { EVENT_PRESENTATION, eventLogCategory } from '../../../packages/core/src/events.js';
 
 const CLASS_LABEL = { farmer: '农民', worker: '工人', merchant: '商人', official: '公务员' };
 const CLASS_COLOR = { farmer: '#2ecc71', worker: '#3498db', merchant: '#d4a017', official: '#8e44ad' };
@@ -176,12 +178,27 @@ export class UI {
     const grid = document.getElementById('people-grid');
     const detail = document.getElementById('person-detail');
     if (!grid || !detail) return;
+    const grouped = isAggregateMode(state.people, state.cfg);
+    grid.classList.toggle('population-overview', grouped);
+    grid.parentElement.classList.toggle('aggregate-mode', grouped);
+    document.getElementById('population-heading').textContent = grouped ? '国民阶层' : '国民个体';
+    document.getElementById('population-hint').textContent = grouped
+      ? `人口超过 ${state.cfg.bucketModeThreshold}，仅显示阶层汇总`
+      : '点击头像查看近 12 年履历';
+    if (grouped) {
+      this.selectedPersonId = null;
+      grid.innerHTML = Object.keys(CLASS_LABEL).map(k => `<section class="population-group">
+        <h4>${CLASS_LABEL[k]} <b>${state.stats.byClass[k]} 人</b></h4>
+        <p>平均满意 ${state.stats.classSat[k].toFixed(1)}</p>
+        <p>人均资产 ${formatCompactNumber(state.stats.classWealth[k])}</p>
+      </section>`).join('');
+      detail.textContent = '群体模式不显示个人资料，也不保存个人履历。人口回到阈值以内后恢复记录；国家曲线保留最近 240 年。满意度不含罪犯，资产折合粮食。';
+      return;
+    }
     if (!state.people.some(p => p.id === this.selectedPersonId)) {
       this.selectedPersonId = state.people[0]?.id ?? null;
     }
-    const renderLimit = state.cfg.bucketModeThreshold || 300;
-    const visiblePeople = state.people.slice(0, renderLimit);
-    grid.innerHTML = visiblePeople.map(p => {
+    grid.innerHTML = state.people.map(p => {
       const active = p.id === this.selectedPersonId ? ' active' : '';
       const initial = (p.name || `民${p.id}`).slice(0, 1);
       return `<button class="person-avatar${active}" data-id="${p.id}" title="${p.name || ''}">
@@ -189,9 +206,7 @@ export class UI {
         <span class="avatar-name">${p.name || `无名${p.id}`}</span>
         <span class="avatar-sat">满意 ${p.satisfaction.toFixed(1)}</span>
       </button>`;
-    }).join('') + (state.people.length > renderLimit
-      ? `<div class="people-truncated">为保持流畅，仅显示前 ${renderLimit} / ${state.people.length} 人</div>`
-      : '');
+    }).join('');
     grid.querySelectorAll('.person-avatar').forEach(btn => {
       btn.onclick = () => {
         this.selectedPersonId = Number(btn.dataset.id);
@@ -288,7 +303,7 @@ export class UI {
     const html = state.log
       .map((l, i) => i === 0
         ? `<div class="log-year">${l}</div>`
-        : `<div class="log-line">${l}</div>`)
+        : `<div class="log-line event-${eventLogCategory(l)}">${l}</div>`)
       .join('');
     const first = list.firstElementChild;
     if (first?.dataset.logKey === key) {
@@ -304,6 +319,12 @@ export class UI {
   }
 
   showEvent(ev) {
+    const category = ev.category || 'neutral';
+    const presentation = EVENT_PRESENTATION[category];
+    const card = document.querySelector('#event-modal .modal-card');
+    card.dataset.category = category;
+    card.style.setProperty('--event-color', presentation.color);
+    document.getElementById('event-category').textContent = `${presentation.symbol} ${presentation.label}`;
     document.getElementById('event-title').textContent = '📜 ' + ev.title;
     document.getElementById('event-desc').textContent = ev.desc;
     const opts = document.getElementById('event-options');
@@ -341,6 +362,7 @@ export class UI {
   }
 
   showWar(war) {
+    document.querySelector('#war-modal .modal-card').style.setProperty('--event-color', EVENT_PRESENTATION.bad.color);
     document.getElementById('war-title').textContent = `⚔ ${war.enemyName}入侵`;
     document.getElementById('war-desc').textContent =
       `敌军强度约 ${war.enemyStrength}，我国可征召 ${war.eligible} 名适龄公民。投入越高胜率越高，但军费和阵亡风险也会扩大。`;

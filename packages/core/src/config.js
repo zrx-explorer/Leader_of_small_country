@@ -67,7 +67,11 @@ export const DEFAULT_CONFIG = Object.freeze({
   deathStartAge: 50,
   deathHardCap: 95,
   // 性能
-  bucketModeThreshold: 300, // UI 超过该值只渲染部分个体
+  bucketModeThreshold: 300, // 超过阈值仅显示阶层汇总，不记录个人履历
+  personHistoryLimit: 12,
+  historyLimit: 240,
+  storyHookLimit: 30,
+  positiveEventInterval: 4, // 连续 3 次非好事件后，下次普通事件必为好事件
 });
 
 export const INITIAL_POPULATION = {

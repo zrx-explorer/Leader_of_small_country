@@ -135,11 +135,18 @@ node scripts/balance-check.mjs --peaceful --assert  # 隔离事件和战争，�
 node scripts/balance-check.mjs --fight --assert     # 标准出兵策略
 node scripts/balance-check.mjs --seeds 100 --years 150 --mixed --assert  # 更广的真实开局复核
 node scripts/runtime-check.mjs            # 三端一致性、存档、小程序防重复与取消
+node scripts/economy-check.mjs            # 交易优化与原规则逐人精确对比、资源守恒
+node scripts/pacing-check.mjs             # 事件保底、读档、600年历史上限、隐藏值不参与玩法
+node --expose-gc scripts/performance-check.mjs --assert # 300/301/800/2000人耗时、存档与堆内存
 python -m http.server 8000                # 在另一终端启动本地服务
 node scripts/browser-check.mjs            # 页面、事件、战争、进度、移动布局及离线测试
 ```
 
 默认政策旨在维持低评分的持续经营，不保证任何事件选择都安全。治理评分只反馈经营质量，不作为失败条件；零税、过高工资、过度征兵等失策仍有代价。修改模拟时编辑 `packages/core/src`，修改单文件适配时编辑 `scripts/standalone-runtime.js`，再运行同步脚本。
+
+人口超过300人时，网页与离线版切换到4张阶层汇总卡，不再展示个人信息；小程序保持轻量阶层概览。个人履历仅保留近12年，群体模式下释放，国家曲线仅保留近240年。旧存档加载后也执行这个上限，再次存档不会保留被裁剪的历史；需要完整旧历史时请先备份旧存档。当前个人资源、年龄、职业等模拟状态仍完整保存。
+
+事件以橙色好事件、黑色坏事件、灰色中性事件区分，并附文字与符号。连续3次非好事件后，下次普通事件必为好事件；按事件次数而非年份计数，战争保持优先级。新增“乡里丰年会”“巧匠献礼”，共23张事件卡，提供民生与财政之间的奖励取舍。
 
 欢迎提 Issue / PR：
 

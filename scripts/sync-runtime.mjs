@@ -24,6 +24,9 @@ const target = path.join(root, 'play.html');
 let html = fs.readFileSync(target, 'utf8');
 // 替换旧的手写模拟副本；后续构建只同步标记内的适配代码。
 const adapter = fs.readFileSync(path.join(root,'scripts/standalone-runtime.js'),'utf8');
+// 将旧的单行 UI 函数迁入可维护的适配层（下次同步不再匹配）。
+html = html.replace(/^    function (showEvent|renderPeople)\(\).*\r?\n/gm, '');
+html = html.replace(/let key=state\.log\[0\][^\n]*?while\(log.children.length>30\)log.removeChild\(log.lastChild\);/, 'appendYearLog();');
 const adapterStart = html.includes('// BEGIN STANDALONE ADAPTER') ? html.indexOf('// BEGIN STANDALONE ADAPTER') : html.indexOf('    const C=');
 const adapterEnd = html.indexOf('    function signed', adapterStart);
 if (adapterStart < 0 || adapterEnd < 0) throw new Error('Standalone adapter boundaries not found');
@@ -33,5 +36,8 @@ html = html.replace("let available=state.people.filter(p=>p.klass==='official'&&
 const marker = /<!-- BEGIN GENERATED CORE -->[\s\S]*?<!-- END GENERATED CORE -->\s*/;
 html = html.replace(marker, '');
 html = html.replace('  <script>','  <!-- BEGIN GENERATED CORE -->\n  <script>\n' + bundle.replace(/<\/script/gi, '<\\/script') + '\n  </script>\n  <!-- END GENERATED CORE -->\n  <script>');
+const presentationCSS = fs.readFileSync(path.join(root, 'apps/web/styles/presentation.css'), 'utf8');
+html = html.replace(/<!-- BEGIN PRESENTATION CSS -->[\s\S]*?<!-- END PRESENTATION CSS -->\s*/, '');
+html = html.replace('</head>', '<!-- BEGIN PRESENTATION CSS -->\n<style>\n' + presentationCSS + '\n</style>\n<!-- END PRESENTATION CSS -->\n</head>');
 fs.writeFileSync(target, html);
 console.log('Synced 10 CommonJS modules and standalone core/transition bundle.');

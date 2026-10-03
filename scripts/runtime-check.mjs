@@ -77,3 +77,20 @@ page.onNextYear();page.onHide();
 assert.equal(app.globalData.state.year,2);assert.equal(app.globalData.busy,false);
 assert.equal(page.finishTransition,null);
 console.log('PASS miniprogram duplicate taps, animation skip and navigation cancellation');
+
+// Exercise the real app API exports rather than only the core mock.
+let actualApp;
+vm.runInNewContext(fs.readFileSync(new URL('../apps/miniprogram/app.js',import.meta.url),'utf8'),{
+  require:createRequire(new URL('../apps/miniprogram/app.js',import.meta.url)),App:value=>{actualApp=value;},
+  getApp:()=>actualApp,wx:{getStorageSync:()=>null},
+});
+actualApp.onLaunch();app.api=actualApp.api;
+app.globalData.state=mini.newGame({chapter:4,seed:7});
+app.globalData.state.pendingEvent=require('../apps/miniprogram/core/events.js').EVENTS.find(e=>e.id==='village_festival');
+page.refresh();
+assert(page.data.populationNotice.includes('仅显示阶层汇总'));
+assert.equal(page.data.eventColor,'#b45309');assert(page.data.eventLabel.includes('好事件'));
+assert(!JSON.stringify(page.data.event).includes('hiddenEffects'));
+assert(!JSON.stringify(page.data.event).includes('morality'));
+assert(!Object.hasOwn(page.data,'people'));
+console.log('PASS real miniprogram app exports, population notice, event colors and lightweight view payload');

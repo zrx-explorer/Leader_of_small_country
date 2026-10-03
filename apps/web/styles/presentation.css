@@ -1,0 +1,15 @@
+/* 橙色喜讯、黑色危机、灰色中性；文字/符号同时传达分类。 */
+.event-good{color:#b45309}.event-bad{color:#202020}.event-neutral{color:#666666}
+.event-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;font-weight:700;margin:8px 0}
+.pacing-note{font-size:12px;color:#666;line-height:1.6;margin:8px 0 12px}
+.event-badge{display:inline-block;color:var(--event-color,#202020);border:1px solid currentColor;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;margin-bottom:10px}
+#event-modal .modal-card,#war-modal .modal-card,#eventModal .box,#warModal .box{border-top:5px solid var(--event-color,#202020)}
+#event-modal h3,#war-modal h3,#eventModal h2,#warModal h2{color:var(--event-color,#202020)}
+.population-overview{grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;max-height:none;overflow:visible}
+.population-group{padding:12px;background:#f5f1e9;border:1px solid #e3dac9;border-radius:8px;font-size:12px;min-width:0}
+.population-group h4{font-size:14px;color:#263645;margin:0 0 10px}.population-group h4 b{display:block;font-size:20px;margin-top:4px}
+.population-group p{margin:4px 0;color:#54667a;overflow-wrap:anywhere}
+.aggregate-mode{grid-template-columns:minmax(0,1fr)}
+.aggregate-mode>.person-detail,.aggregate-mode>.detail{border-left:0;border-top:1px dashed #dfd3bd;padding:10px 0 0;line-height:1.7;max-height:none}
+.panel-vis>.people-board{flex-shrink:0}
+.footer-bar{flex-wrap:wrap}.footer-bar>.btn{white-space:nowrap}
